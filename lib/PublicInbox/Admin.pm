@@ -291,7 +291,7 @@ sub index_inbox {
 	local $SIG{__WARN__} = warn_cb $idx;
 	if ($ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
-		die "v2 requirements not met: $@\n" if $@;
+		die "public-inbox-v2-format requirements not met: $@\n" if $@;
 		$ibx->{-creat_opt}->{nproc} = $jobs;
 		my $v2w = $im // $ibx->importer($opt->{reindex} // $jobs);
 		if (defined $jobs) {
