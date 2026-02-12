@@ -6,16 +6,16 @@ public-inbox-v2-format - structure of public inbox v2 archives
 
 =head1 DESCRIPTION
 
-The v2 format is designed primarily to address several
-scalability problems of the original format described at
-L<public-inbox-v1-format(5)>.  It also handles messages with
-Message-IDs.
+The v2 format was introduced in public-inbox 1.1 and designed
+primarily to address several scalability problems of the
+original format described at L<public-inbox-v1-format(5)>.  It
+also handles messages with multiple Message-IDs.
 
 =head1 INBOX LAYOUT
 
-The key change in v2 is the inbox is no longer a bare git
+The key change in the v2 format is the inbox is no longer a bare git
 repository, but a directory with two or more git repositories.
-v2 divides git repositories by time "epochs" and Xapian
+The v2 format divides git repositories by time "epochs" and Xapian
 databases for parallelism by "shards".
 
 =head2 INBOX OVERVIEW AND DEFINITIONS
