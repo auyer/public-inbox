@@ -6,7 +6,44 @@
  * Avoiding Git::Raw since it doesn't guarantee a stable API,
  * while libgit2 itself seems reasonably stable.
  */
-#include <git2.h>
+#ifdef LG2_EXPERIMENTAL // libgit2 v1.9 built w/ -DEXPERIMENTAL_SHA256=ON
+#	include <git2-experimental.h>
+#	define MY_OID_MAX_HEXSIZE GIT_OID_MAX_HEXSIZE
+
+static int my_odb_new(git_odb **odb) // TODO: support SHA256
+{
+	git_odb_options opts = GIT_ODB_OPTIONS_INIT;
+
+	return git_odb_new(odb, &opts);
+}
+
+// TODO: see if we can remove abbreviation support...
+static int my_oid_fromstrn(git_oid *oid, size_t *full_oidlen,
+				const char *str, size_t len)
+{
+	*full_oidlen = GIT_OID_SHA1_HEXSIZE;
+	if (len <= GIT_OID_SHA1_HEXSIZE)
+		return git_oid_fromstrn(oid, str, len, GIT_OID_SHA1);
+	if (len == GIT_OID_SHA256_HEXSIZE) {
+		*full_oidlen = GIT_OID_SHA256_HEXSIZE;
+		return git_oid_fromstrn(oid, str, len, GIT_OID_SHA256);
+	}
+	croak("hex OID of unsupported length: %llu (%s)\n",
+		(unsigned long long)len, str);
+}
+#else // !LG2_EXPERIMENTAL
+#	include <git2.h>
+#	define my_odb_new(odb) git_odb_new(odb)
+#	define MY_OID_MAX_HEXSIZE GIT_OID_HEXSZ
+
+static int my_oid_fromstrn(git_oid *oid, size_t *full_oidlen,
+				const char *str, size_t len)
+{
+	*full_oidlen = GIT_OID_HEXSZ;
+	return git_oid_fromstrn(oid, str, len);
+}
+#endif // !LG2_EXPERIMENTAL
+
 #include <sys/uio.h>
 #include <errno.h>
 #include <poll.h>
@@ -24,7 +61,7 @@ SV *new()
 {
 	git_odb *odb;
 	SV *ref, *self;
-	int rc = git_odb_new(&odb);
+	int rc = my_odb_new(&odb);
 	croak_if_err(rc, "git_odb_new");
 
 	ref = newSViv((IV)odb);
@@ -64,35 +101,43 @@ int cat_oid(SV *self, int fd, SV *oidsv)
 	 * adjust when libgit2 gets SHA-256 support, we return the
 	 * same header as git-cat-file --batch "$OID $TYPE $SIZE\n"
 	 */
-	char hdr[GIT_OID_HEXSZ + sizeof(" commit 18446744073709551615")];
+	char hdr[MY_OID_MAX_HEXSIZE + sizeof(" commit 18446744073709551615")];
 	struct iovec vec[3];
 	size_t nvec = CAPA(vec);
 	git_oid oid;
 	git_odb_object *object = NULL;
 	int rc, err = 0;
 	STRLEN oidlen;
+	size_t full_oidlen;
 	char *oidptr = SvPV(oidsv, oidlen);
 
 	/* same trailer as git-cat-file --batch */
 	vec[2].iov_len = 1;
 	vec[2].iov_base = "\n";
 
-	rc = git_oid_fromstrn(&oid, oidptr, oidlen);
+	rc = my_oid_fromstrn(&oid, &full_oidlen, oidptr, oidlen);
 	if (rc == GIT_OK)
 		rc = git_odb_read(&object, odb_ptr(self), &oid);
 	if (rc == GIT_OK) {
 		vec[0].iov_base = hdr;
 		vec[1].iov_base = (void *)git_odb_object_data(object);
 		vec[1].iov_len = git_odb_object_size(object);
-
-		git_oid_nfmt(hdr, GIT_OID_HEXSZ, git_odb_object_id(object));
-		vec[0].iov_len = GIT_OID_HEXSZ +
-				snprintf(hdr + GIT_OID_HEXSZ,
-					sizeof(hdr) - GIT_OID_HEXSZ,
+		rc = git_oid_fmt(hdr, git_odb_object_id(object));
+	}
+	if (rc == GIT_OK) {
+		size_t remain = sizeof(hdr) - full_oidlen;
+		int n = snprintf(hdr + full_oidlen, remain,
 					" %s %zu\n",
 					git_object_type2string(
 						git_odb_object_type(object)),
 					vec[1].iov_len);
+		if (n > 0 && n < remain) {
+			vec[0].iov_len = full_oidlen + (size_t)n;
+		} else {
+			err = errno;
+			git_odb_object_free(object);
+			croak("snprintf error: %s (%d)", strerror(err), n);
+		}
 	} else { /* caller retries */
 		nvec = 0;
 	}

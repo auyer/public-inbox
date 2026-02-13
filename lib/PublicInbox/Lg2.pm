@@ -28,37 +28,57 @@ BEGIN {
 	my ($dir) = (__FILE__ =~ m!\A(.+?)/[^/]+\z!);
 	my $vals = {};
 	my $rdr = { 2 => \(my $err) };
-	my @switches = qw(modversion cflags libs);
-	for my $k (@switches) {
-		chomp(my $val = run_qx([$pc, "--$k", 'libgit2'], undef, $rdr));
-		die "E: libgit2 not installed: $err\n" if $?;
-		$vals->{$k} = $val;
+
+	# try libgit2-experimental v1.9.x, first, for SHA-256
+	my $pkg = 'libgit2-experimental';
+	my ($lg2ver, $modver);
+	chomp($modver = run_qx([$pc, '--modversion', $pkg], undef, $rdr));
+	unless ($?) {
+		$lg2ver = eval "v$modver";
+		$CFG{CCFLAGSEX} = '-DLG2_EXPERIMENTAL ';
 	}
-	my $modversion = $vals->{modversion};
-	*modversion = sub { $modversion };
-	my $lg2_ver = eval("v$modversion");
+	# use libgit2-experimental for v1.9, only, since a hypothetical
+	# libgit2-experimental v2.0 will likely be further incompatible.
+	# use regular libgit2 if we encounter a newer -experimental
+	if (!defined($lg2ver) || $lg2ver ge v2.0) {
+		$pkg = 'libgit2';
+		$modver = run_qx([$pc, '--modversion', $pkg], undef, $rdr);
+		die "E: $pkg not installed: $err\n" if $?;
+		chomp $modver;
+		$lg2ver = eval "v$modver";
+	}
+	$vals->{modversion} = $modver;
+	my @switches = qw(cflags libs);
+	for my $k (@switches) {
+		my $v = run_qx([$pc, "--$k", $pkg], undef, $rdr);
+		die "`E: $pc --$k $pkg' failed: $err\n" if $?;
+		chomp($vals->{$k} = $v);
+	}
+	*modversion = sub { $modver };
 	my $f = "$dir/lg2.h";
 	$c_src = PublicInbox::IO::try_cat $f or die "cat $f: $!";
 	# old versions were broken w/ multi-line, and also lacked the
 	# LIBGIT2_VERSION_CHECK macro (and Inline::C won't let us hide
 	# functions via CPP #if blocks)
-	if ($lg2_ver ge v1.8) {
+	$lg2ver ge v1.8 and
 		$c_src .= PublicInbox::IO::try_cat "$dir/lg2_cfg.h";
-	}
+
 	# append pkg-config results to the source to ensure Inline::C
 	# can rebuild if there's changes (it doesn't seem to detect
 	# $CFG{CCFLAGSEX} nor $CFG{CPPFLAGS} changes)
-	$c_src .= "/* $pc --$_ libgit2 => $vals->{$_} */\n" for @switches;
+	for ('modversion', @switches) {
+		$c_src .= "// $pc --$_ $pkg => $vals->{$_}\n";
+	}
 	open my $oldout, '>&', \*STDOUT;
 	open my $olderr, '>&', \*STDERR;
 	open STDOUT, '>&', $fh;
 	open STDERR, '>&', $fh;
 	STDERR->autoflush(1);
 	STDOUT->autoflush(1);
-	$CFG{CCFLAGSEX} = $vals->{cflags};
+	$CFG{CCFLAGSEX} .= $vals->{cflags};
 	$CFG{LIBS} = $vals->{libs};
 	my $boot = 'git_libgit2_init();';
-	$boot .= <<EOM if $lg2_ver ge v0.26;
+	$boot .= <<EOM if $lg2ver ge v0.26;
 git_libgit2_opts(GIT_OPT_ENABLE_STRICT_HASH_VERIFICATION, 0);
 EOM
 	eval <<EOM;
