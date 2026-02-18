@@ -33,8 +33,8 @@ if ($^O eq 'linux' && eval { require PublicInbox::Inotify; 1 }) {
 }
 
 sub new {
-	my ($class, $cb) = @_;
-	my $self = bless { cb => $cb }, $class;
+	my ($class, @cb_args) = @_;
+	my $self = bless { cb_args => \@cb_args }, $class;
 	my $inot;
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";
@@ -70,17 +70,18 @@ sub rm_watches {
 
 sub close {
 	my ($self) = @_;
-	delete $self->{cb};
+	delete $self->{cb_args};
 	$self->SUPER::close; # if using real kevent/inotify
 }
 
 sub event_step {
 	my ($self) = @_;
-	my $cb = $self->{cb} or return;
+	my $cb_args = $self->{cb_args} or return;
 	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously (FIXME)
+	my ($cb, @args) = @$cb_args;
 	eval {
 		my @events = $self->{inot}->read; # Inotify3->read
-		$cb->($_) for @events;
+		$cb->($_, @args) for @events;
 	};
 	warn "$self->{inot}->read err: $@\n" if $@;
 }

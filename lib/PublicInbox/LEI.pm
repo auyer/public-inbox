@@ -1273,9 +1273,10 @@ sub note_event ($@) { # runs lei_note_event for a given config file
 	carp "E: note-event $cfg_f: $@\n" if $@;
 }
 
-sub dir_idle_handler ($) { # PublicInbox::DirIdle callback
-	my ($ev) = @_; # Linux::Inotify2::Event or duck type
+sub dir_idle_cb { # PublicInbox::DirIdle callback
+	my ($ev, $sock_path) = @_; # $ev: Linux::Inotify2::Event or duck type
 	my $fn = $ev->fullname;
+	return if $fn eq ($$sock_path // ''); # just woke up for post_loop_do
 	if ($fn =~ m!\A(.+)/(new|cur)/([^/]+)\z!) { # Maildir file
 		my ($loc, $new_cur, $bn) = ("maildir:$1", $2, $3);
 		$new_cur = '' if $ev->IN_DELETE || $ev->IN_MOVED_FROM;
@@ -1426,10 +1427,7 @@ sub lazy_start {
 	$sig->{$_} = $quit for qw(QUIT INT TERM);
 	$sig->{$_} = \&PublicInbox::Config::noop for qw(HUP USR1 USR2);
 	require PublicInbox::DirIdle;
-	local $dir_idle = PublicInbox::DirIdle->new(sub {
-		# just rely on wakeup to hit post_loop_do
-		dir_idle_handler($_[0]) if $_[0]->fullname ne ($sock_path//'');
-	});
+	local $dir_idle = PublicInbox::DirIdle->new(\&dir_idle_cb, \$sock_path);
 	$dir_idle->add_watches([$sock_dir]);
 	local @PublicInbox::DS::post_loop_do = (\&can_stay_alive,
 						\$sock_path, $dev_ino_expect);
