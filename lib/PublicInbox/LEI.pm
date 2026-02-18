@@ -1428,7 +1428,7 @@ sub lazy_start {
 	require PublicInbox::DirIdle;
 	local $dir_idle = PublicInbox::DirIdle->new(sub {
 		# just rely on wakeup to hit post_loop_do
-		dir_idle_handler($_[0]) if $_[0]->fullname ne $sock_path;
+		dir_idle_handler($_[0]) if $_[0]->fullname ne ($sock_path//'');
 	});
 	$dir_idle->add_watches([$sock_dir]);
 	local @PublicInbox::DS::post_loop_do = (\&can_stay_alive,
