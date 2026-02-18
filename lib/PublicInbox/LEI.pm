@@ -1308,18 +1308,18 @@ sub dir_idle_handler ($) { # PublicInbox::DirIdle callback
 }
 
 sub can_stay_alive { # PublicInbox::DS::post_loop_do cb
-	my ($path, $dev_ino_expect) = @_;
-	if (my @st = defined($$path) ? stat($$path) : ()) {
+	my ($sock_path, $dev_ino_expect) = @_;
+	if (my @st = defined($$sock_path) ? stat($$sock_path) : ()) {
 		if ($dev_ino_expect ne pack('dd', $st[0], $st[1])) {
-			warn "$$path dev/ino changed, quitting\n";
-			$$path = undef;
+			warn "$$sock_path dev/ino changed, quitting\n";
+			$$sock_path = undef;
 		}
-	} elsif (defined($$path)) { # ENOENT is common
-		warn "stat($$path): $!, quitting ...\n" if $! != ENOENT;
-		undef $$path;
+	} elsif (defined($$sock_path)) { # ENOENT is common
+		warn "stat($$sock_path): $!, quitting ...\n" if $! != ENOENT;
+		undef $$sock_path;
 		$quit->();
 	}
-	return 1 if defined($$path);
+	return 1 if defined($$sock_path);
 	my $n = PublicInbox::DS::close_non_busy() or do {
 		eval 'PublicInbox::LeiNoteEvent::flush_task()';
 		# drop stores only if no clients
@@ -1358,7 +1358,7 @@ sub spawn_tmp_xh { # called in top-level lei-daemon
 
 # lei(1) calls this when it can't connect
 sub lazy_start {
-	my ($path, $errno, $narg) = @_;
+	my ($sock_path, $errno, $narg) = @_;
 	local ($errors_log, $listener, $PublicInbox::Search::XHC);
 
 	# no point in using xap_helper w/o C++ features for local clients
@@ -1368,24 +1368,24 @@ sub lazy_start {
 		require PublicInbox::XapClient;
 		require PublicInbox::XhcMset;
 	}
-	my ($sock_dir) = ($path =~ m!\A(.+?)/[^/]+\z!);
+	my ($sock_dir) = ($sock_path =~ m!\A(.+?)/[^/]+\z!);
 	$errors_log = "$sock_dir/errors.log";
-	my $addr = pack_sockaddr_un($path);
+	my $addr = pack_sockaddr_un($sock_path);
 	my $lk = PublicInbox::Lock->new($errors_log);
 	umask(077) // die("umask(077): $!");
 	$lk->lock_acquire;
 	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0);
 	if ($errno == ECONNREFUSED || $errno == ENOENT) {
 		return if connect($listener, $addr); # another process won
-		unlink($path) if $errno == ECONNREFUSED && -S $path;
+		unlink($sock_path) if $errno == ECONNREFUSED && -S $sock_path;
 	} else {
 		$! = $errno; # allow interpolation to stringify in die
-		die "connect($path): $!";
+		die "connect($sock_path): $!";
 	}
 	bind($listener, $addr);
 	$lk->lock_release;
 	undef $lk;
-	my @st = stat($path) or die "stat($path): $!";
+	my @st = stat($sock_path) or die "stat($sock_path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	local $oldset = PublicInbox::DS::block_signals(POSIX::SIGALRM);
 	die "incompatible narg=$narg" if $narg != 5;
@@ -1401,7 +1401,7 @@ sub lazy_start {
 	POSIX::setsid() > 0 or die "setsid: $!";
 	my $pid = PublicInbox::OnDestroy::fork_tmp;
 	return if $pid;
-	$0 = "lei-daemon $path";
+	$0 = "lei-daemon $sock_path";
 	local (%PATH2CFG, $MDIR2CFGPATH);
 	local $daemon_pid = $$;
 	$listener->blocking(0);
@@ -1418,7 +1418,7 @@ sub lazy_start {
 			eval 'PublicInbox::LeiNoteEvent::flush_task()';
 			my $lis = $pil or exit($exit_code // 0);
 			# closing eof_p triggers \&noop wakeup
-			$listener = $eof_p = $pil = $path = undef;
+			$listener = $eof_p = $pil = $sock_path = undef;
 			$lis->close; # DS::close
 		};
 	};
@@ -1428,11 +1428,11 @@ sub lazy_start {
 	require PublicInbox::DirIdle;
 	local $dir_idle = PublicInbox::DirIdle->new(sub {
 		# just rely on wakeup to hit post_loop_do
-		dir_idle_handler($_[0]) if $_[0]->fullname ne $path;
+		dir_idle_handler($_[0]) if $_[0]->fullname ne $sock_path;
 	});
 	$dir_idle->add_watches([$sock_dir]);
 	local @PublicInbox::DS::post_loop_do = (\&can_stay_alive,
-						\$path, $dev_ino_expect);
+						\$sock_path, $dev_ino_expect);
 	# STDIN was redirected to /dev/null above, closing STDERR and
 	# STDOUT will cause the calling `lei' client process to finish
 	# reading the <$daemon> pipe.
