@@ -86,7 +86,7 @@ EOM
 	"<html><head><title>$title</title>" .
 		qq(<link\nrel=alternate\ntitle="Atom feed"\n).
 		qq(href="$atom"\ntype="application/atom+xml"/>) .
-		$ctx->{www}->style($upfx) .
+		$ctx->{www}->html_head($upfx) .
 		'</head><body>'.$top;
 }
 
@@ -133,7 +133,7 @@ sub html_top ($) {
 	"<html><head><title>$title</title>" .
 		qq(<link\nrel=alternate\ntitle="Atom feed"\n).
 		qq(href="$atom"\ntype="application/atom+xml"/>) .
-	        $ctx->{www}->style($upfx) .
+	        $ctx->{www}->html_head($upfx) .
 		'</head><body>'. $top . (delete($ctx->{-html_tip}) // '');
 }
 

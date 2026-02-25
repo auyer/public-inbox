@@ -651,7 +651,7 @@ sub stylesheets_prepare ($$) {
 		}
 		push @$links, $attr;
 	}
-	my $buf = '<style>';
+	my $buf = join('', @{$self->{pi_cfg}->{html_head} // []}) . '<style>';
 	if ($import) {
 		my @links;
 		for my $attr (@$links) {
@@ -690,9 +690,9 @@ sub stylesheets_prepare ($$) {
 			}
 			$buf .= ' />';
 		}
-		$self->{"-style-$upfx"} = $buf;
+		$self->{"-hhead-$upfx"} = $buf;
 	} else {
-		$self->{-style_inline} = $buf;
+		$self->{-hhead_inline} = $buf;
 	}
 	# load potentially imported CSS files in known CSS directories
 	if (@css_dir && !$self->{-css_dir}) {
@@ -723,13 +723,13 @@ sub stylesheets_prepare ($$) {
 	$css_map;
 }
 
-# returns an HTML fragment with <style> or <link> tags in them
+# returns an HTML fragment with configured head and CSS tags in it
 # Called by WwwStream by nearly every HTML page
-sub style {
+sub html_head {
 	my ($self, $upfx) = @_;
-	$self->{-style_inline} || $self->{"-style-$upfx"} || do {
+	$self->{-hhead_inline} || $self->{"-hhead-$upfx"} || do {
 		stylesheets_prepare($self, $upfx);
-		$self->{-style_inline} || $self->{"-style-$upfx"}
+		$self->{-hhead_inline} || $self->{"-hhead-$upfx"}
 	};
 }
 

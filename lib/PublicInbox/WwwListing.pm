@@ -214,7 +214,7 @@ sub psgi_triple {
 	my $gzf = gzf_maybe($h, $ctx->{env});
 	my $zfh = $gzf->zfh;
 	print $zfh '<html><head><title>public-inbox listing</title>',
-			$ctx->{www}->style('+/'),
+			$ctx->{www}->html_head('+/'),
 			'</head><body>';
 	my $code = 404;
 	if (my $list = delete $ctx->{-list}) {

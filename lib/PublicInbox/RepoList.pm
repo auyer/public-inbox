@@ -12,7 +12,7 @@ sub html_top_fallback { # WwwStream->html_repo_top
 		ascii_html("$ctx->{env}->{PATH_INFO}*");
 	my $upfx = $ctx->{-upfx} // '';
 	"<html><head><title>$title</title>" .
-		$ctx->{www}->style($upfx) . '</head><body>';
+		$ctx->{www}->html_head($upfx) . '</head><body>';
 }
 
 sub html ($$$) {

@@ -65,6 +65,9 @@ sub new {
 	if (my $css = delete $self->{'publicinbox.css'}) {
 		$self->{css} = _array($css);
 	}
+	if (my $html_head = delete $self->{'publicinbox.htmlhead'}) {
+		$self->{html_head} = _array($html_head);
+	}
 	$DEDUPE->{$file} = $self if $set_dedupe;
 	$self;
 }
