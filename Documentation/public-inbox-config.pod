@@ -290,6 +290,23 @@ directory of the public-inbox
 source|https://80x24.org/public-inbox.git/tree/contrib/css>
 for more examples.
 
+=item publicinbox.htmlhead
+
+A literal HTML fragment to include in the C<E<lt>headE<gt>> block of
+pages served by the L<PublicInbox::WWW> PSGI interface.
+
+May be specified more than once; values are emitted in order before
+stylesheet tags.
+
+Useful tags include C<E<lt>metaE<gt>> and C<E<lt>linkE<gt>>.  Example:
+
+	htmlhead = <meta name=foo content="bar"/>
+
+Admins should consult current HTML recommendations for their audience,
+as best practices change over time.
+
+Default: none
+
 =item publicinboxImport.dropUniqueUnsubscribe
 
 Drop C<List-Unsubscribe> headers if the message also includes
