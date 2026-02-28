@@ -1,5 +1,6 @@
 # this usually in ~/.public-inbox/config and parseable with git-config(1)
 # update t/config.t if changing this, that test relies on this
+# See public-inbox-config(5) manpage for more options and descriptions.
 [publicinbox "test"]
 	address = try@public-inbox.org
 	address = sandbox@public-inbox.org
