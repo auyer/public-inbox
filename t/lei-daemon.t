@@ -35,12 +35,11 @@ test_lei({ daemon_only => 1 }, sub {
 		my @before = sort(glob("$d/*"));
 		my $addr = pack_sockaddr_un($sock);
 		open my $null, '<', '/dev/null' or BAIL_OUT "/dev/null: $!";
-		my @fds = map { fileno($null) } (0..2);
 		for (0..10) {
 			socket(my $c, AF_UNIX, SOCK_SEQPACKET, 0) or
 							BAIL_OUT "socket: $!";
 			connect($c, $addr) or BAIL_OUT "connect: $!";
-			$send_cmd->($c, \@fds, 'hi', MSG_EOR);
+			$send_cmd->($c, [ $null, $null, $null ], 'hi', MSG_EOR);
 		}
 		lei_ok('daemon-pid');
 		chomp($pid = $lei_out);

@@ -15,11 +15,10 @@ use autodie qw(pipe socketpair);
 our $tries = -1; # set to zero by read-only daemon
 
 sub mkreq {
-	my ($self, $ios, @arg) = @_;
-	my @fds = map fileno($_), @$ios;
+	my ($self, $io, @arg) = @_;
 	my $buf = join("\0", @arg, '');
 	my $n = $PublicInbox::IPC::send_cmd->($self->{io},
-				\@fds, $buf, MSG_EOR, $tries)
+				$io, $buf, MSG_EOR, $tries)
 				// die "send_cmd: $!";
 	$n == length($buf) or die "send_cmd: $n != ".length($buf);
 }

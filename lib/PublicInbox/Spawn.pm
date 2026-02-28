@@ -211,15 +211,15 @@ union my_cmsg {
 	char pad[sizeof(struct cmsghdr) + 16 + SEND_FD_SPACE];
 };
 
-SV *send_cmd4_(PerlIO *s, SV *svfds, SV *data, int flags, long tries)
+SV *send_cmd4_(PerlIO *s, SV *sio, SV *data, int flags, long tries)
 {
 	struct msghdr msg = { 0 };
 	union my_cmsg cmsg = { 0 };
 	STRLEN dlen = 0;
 	struct iovec iov;
 	ssize_t sent;
-	AV *fds = (AV *)SvRV(svfds);
-	I32 i, nfds = av_len(fds) + 1;
+	AV *io = (AV *)SvRV(sio);
+	I32 i, nfds = io ? (av_len(io) + 1) : 0;
 	int *fdp;
 
 	if (SvOK(data)) {
@@ -244,8 +244,8 @@ SV *send_cmd4_(PerlIO *s, SV *svfds, SV *data, int flags, long tries)
 		cmsg.hdr.cmsg_len = CMSG_LEN(nfds * sizeof(int));
 		fdp = (int *)CMSG_DATA(&cmsg.hdr);
 		for (i = 0; i < nfds; i++) {
-			SV **fd = av_fetch(fds, i, 0);
-			*fdp++ = SvIV(*fd);
+			SV **svio = av_fetch(io, i, 0);
+			*fdp++ = PerlIO_fileno(IoIFP(sv_2io(*svio)));
 		}
 	}
 	do {

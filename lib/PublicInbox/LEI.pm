@@ -1066,8 +1066,7 @@ sub send_exec_cmd { # tell script/lei to execute a command
 	my ($self, $io, $cmd, $env) = @_;
 	$PublicInbox::IPC::send_cmd->(
 			$self->{sock} // die('lei client gone'),
-			[ map { fileno($_) } @$io ],
-			exec_buf($cmd, $env), MSG_EOR) //
+			$io, exec_buf($cmd, $env), MSG_EOR) //
 		Carp::croak("sendmsg: $!");
 }
 

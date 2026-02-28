@@ -15,8 +15,8 @@ my $do_test = sub { SKIP: {
 	my ($s1, $s2);
 	my $src = 'some payload' x 40;
 	socketpair($s1, $s2, AF_UNIX, $type, 0);
-	my $sfds = [ fileno($r), fileno($w), fileno($s1) ];
-	$send->($s1, $sfds, $src, $flag);
+	my $io = [ $r, $w, $s1 ];
+	$send->($s1, $io, $src, $flag);
 	my (@fds) = $recv->($s2, my $buf, length($src) + 1);
 	is($buf, $src, 'got buffer payload '.$desc);
 	my ($r1, $w1, $s1a);
@@ -38,7 +38,7 @@ my $do_test = sub { SKIP: {
 	if ($type == SOCK_SEQPACKET) {
 		$r1 = $w1 = $s1a = undef;
 		$src = (',' x 1023) . '-' .('.' x 1024);
-		$send->($s1, $sfds, $src, $flag);
+		$send->($s1, $io, $src, $flag);
 		(@fds) = $recv->($s2, $buf, 1024);
 		is($buf, (',' x 1023) . '-', 'silently truncated buf');
 
@@ -83,7 +83,7 @@ my $do_test = sub { SKIP: {
 		$s1->blocking(0);
 		my $nsent = 0;
 		my $srclen = length($src);
-		while (defined(my $n = $send->($s1, $sfds, $src, $flag))) {
+		while (defined(my $n = $send->($s1, $io, $src, $flag))) {
 			$nsent += $n;
 			fail "sent $n bytes of $srclen" if $n > $srclen;
 		}
@@ -93,12 +93,17 @@ my $do_test = sub { SKIP: {
 		ok($nsent > 0, 'sent some bytes');
 
 		socketpair($s1, $s2, AF_UNIX, $type, 0);
-		is($send->($s1, [], $src, $flag), length($src), 'sent w/o FDs');
+		is($send->($s1, [], $src, $flag), length($src), 'sent w/o IOs');
 		$buf = 'nope';
 		@fds = $recv->($s2, $buf, length($src));
 		is(scalar(@fds), 0, 'no FDs received');
 		is($buf, $src, 'recv w/o FDs');
 	}
+	socketpair($s1, $s2, AF_UNIX, $type, 0);
+	is($send->($s1, undef, $src, $flag), length($src), 'sent w/ undef IO');
+	@fds = $recv->($s2, $buf = 'hi', length($src));
+	is scalar(@fds), 0, 'no FDs received';
+	is $buf, $src, 'recv w/o FDs sent buffer';
 } };
 
 my $send_ic = PublicInbox::Spawn->can('send_cmd4');

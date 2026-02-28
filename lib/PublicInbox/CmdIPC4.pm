@@ -23,11 +23,12 @@ require Socket::MsgHdr; # XS
 no warnings 'once';
 
 # any number of FDs per-sendmsg(2) + buffer
-*send_cmd4 = sub ($$$$;$) { # (sock, fds, buf, flags) = @_;
-	my ($sock, $fds, undef, $flags, $tries) = @_;
+*send_cmd4 = sub ($$$$;$) { # (sock, io, buf, flags) = @_;
+	my ($sock, $io, undef, $flags, $tries) = @_;
 	$tries //= -1; # infinite
 	my $mh = Socket::MsgHdr->new(buf => $_[2]);
-	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS, pack('i' x scalar(@$fds), @$fds));
+	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS,
+		pack('i' x scalar(@{$io //= []}), map { fileno $_ } @$io));
 	my $s;
 	do {
 		$s = Socket::MsgHdr::sendmsg($sock, $mh, $flags);

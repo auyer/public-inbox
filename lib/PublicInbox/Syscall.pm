@@ -526,18 +526,18 @@ if (defined($SYS_sendmsg) && defined($SYS_recvmsg)) {
 require PublicInbox::CmdIPC4;
 
 *send_cmd4 = sub ($$$$;$) {
-	my ($sock, $fds, undef, $flags, $tries) = @_;
+	my ($sock, $io, undef, $flags, $tries) = @_;
 	my $iov = pack('P'.TMPL_size_t,
 			$_[2] // NUL, length($_[2] // NUL) || 1);
-	my $fd_space = scalar(@$fds) * SIZEOF_int;
+	my $fd_space = scalar(@{$io //= []}) * SIZEOF_int;
 	my $msg_controllen = CMSG_SPACE($fd_space);
 	my $cmsghdr = pack(TMPL_cmsg_len .
 			'LL' .  # cmsg_level, cmsg_type,
-			CMSG_DATA_off.('i' x scalar(@$fds)). # CMSG_DATA
+			CMSG_DATA_off.('i' x scalar(@$io)). # CMSG_DATA
 			'@'.($msg_controllen - 1).'x1', # pad to space, not len
 			CMSG_LEN($fd_space), # cmsg_len
 			SOL_SOCKET, SCM_RIGHTS, # cmsg_{level,type}
-			@$fds); # CMSG_DATA
+			map { fileno $_ } @$io); # CMSG_DATA
 	my $mh = pack(TMPL_msghdr,
 			undef, 0, # msg_name, msg_namelen (unused)
 			$iov, 1, # msg_iov, msg_iovlen

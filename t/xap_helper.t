@@ -90,8 +90,8 @@ my $doreq = sub {
 	my $err = ref($arg[-1]) ? pop(@arg) : \*STDERR;
 	pipe(my $x, my $y);
 	my $buf = join("\0", @arg, '');
-	my @fds = (fileno($y), fileno($err));
-	my $n = $PublicInbox::IPC::send_cmd->($s, \@fds, $buf, MSG_EOR) //
+	my @io = ($y, $err);
+	my $n = $PublicInbox::IPC::send_cmd->($s, \@io, $buf, MSG_EOR) //
 		xbail "send: $!";
 	my $exp = length($buf);
 	$exp == $n or xbail "req @arg sent short ($n != $exp)";

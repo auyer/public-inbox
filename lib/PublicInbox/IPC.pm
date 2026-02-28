@@ -395,29 +395,28 @@ sub wq_broadcast {
 }
 
 sub stream_in_full ($$$) {
-	my ($s1, $fds, $buf) = @_;
+	my ($s1, $io, $buf) = @_;
 	socketpair(my $r, my $w, AF_UNIX, SOCK_STREAM, 0);
-	my $n = $send_cmd->($s1, [ fileno($r) ],
+	my $n = $send_cmd->($s1, [ $r ],
 			ipc_freeze(['do_sock_stream', length($buf)]),
 			MSG_EOR) // croak "sendmsg: $!";
 	undef $r;
-	$n = $send_cmd->($w, $fds, $buf, 0) // croak "sendmsg: $!";
+	$n = $send_cmd->($w, $io, $buf, 0) // croak "sendmsg: $!";
 	print $w substr($buf, $n) if $n < length($buf); # need > 2G on Linux
 	close $w; # autodies
 }
 
 sub wq_io_do { # always async
-	my ($self, $sub, $ios, @args) = @_;
+	my ($self, $sub, $io, @args) = @_;
 	my $s1 = $self->{-wq_s1} or Carp::confess('no -wq_s1');
-	my $fds = [ map { fileno($_) } @$ios ];
 	my $buf = ipc_freeze([$sub, @args]);
 	if (length($buf) > $MY_MAX_ARG_LEN) {
-		stream_in_full($s1, $fds, $buf);
+		stream_in_full($s1, $io, $buf);
 	} else {
-		my $n = $send_cmd->($s1, $fds, $buf, MSG_EOR);
+		my $n = $send_cmd->($s1, $io, $buf, MSG_EOR);
 		return if defined($n); # likely
 		$!{ETOOMANYREFS} and croak "sendmsg: $! (check RLIMIT_NOFILE)";
-		$!{EMSGSIZE} ? stream_in_full($s1, $fds, $buf) :
+		$!{EMSGSIZE} ? stream_in_full($s1, $io, $buf) :
 			croak("sendmsg: $!");
 	}
 }
