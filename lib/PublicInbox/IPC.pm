@@ -327,15 +327,11 @@ sub ipc_sibling_atfork_child {
 
 sub recv_and_run {
 	my ($self, $s2, $len, $full_stream) = @_;
-	my @fds = $recv_cmd->($s2, my $buf, $len // $MY_MAX_ARG_LEN);
-	return if scalar(@fds) && !defined($fds[0]);
+	my @io = $recv_cmd->($s2, my $buf, $len // $MY_MAX_ARG_LEN);
+	return if scalar(@io) && !defined($io[0]);
 	my $n = length($buf) or return 0;
-	my $nfd = 0;
-	for my $fd (@fds) {
-		open(my $cmdfh, '+<&=', $fd);
-		$self->{$nfd++} = $cmdfh;
-		$cmdfh->autoflush(1);
-	}
+	@$self{0..$#io} = @io;
+	$_->autoflush(1) for @io;
 	while ($full_stream && $n < $len) {
 		my $r = sysread($s2, $buf, $len - $n, $n);
 		if ($r) {
@@ -356,7 +352,7 @@ sub recv_and_run {
 	my $sub = shift @$args;
 	eval { $self->$sub(@$args) };
 	warn "$$ $0 wq_worker: $sub: $@" if $@;
-	delete @$self{0..($nfd-1)};
+	delete @$self{0..$#io};
 	$n;
 }
 

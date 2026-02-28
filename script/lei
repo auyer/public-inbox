@@ -34,15 +34,11 @@ my $sigchld = sub {
 };
 my @parent;
 my $exec_cmd = sub {
-	my ($fds, $argc, @argv) = @_;
+	my ($io, $argc, @argv) = @_;
 	my $parent = $$;
 	require POSIX;
 	my @old = (\*STDIN, \*STDOUT, \*STDERR);
-	my @rdr;
-	for my $fd (@$fds) {
-		open(my $newfh, '+<&=', $fd) or die "open +<&=$fd: $!";
-		push @rdr, shift(@old), $newfh;
-	}
+	my @rdr = map { (shift(@old), $_) } @$io;
 	my $do_exec = sub {
 		my @non_std; # ex. $op_p from lei_edit_search
 		while (my ($io, $newfh) = splice(@rdr, 0, 2)) {
@@ -64,14 +60,14 @@ my $exec_cmd = sub {
 	$SIG{CHLD} = $sigchld;
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
-		$do_exec->() if $fds->[1]; # git-credential, pager
+		$do_exec->() if $io->[1]; # git-credential, pager
 
 		# parent backgrounds on MUA
 		POSIX::setsid() > 0 or die "setsid: $!";
 		@parent = ($parent);
 		return; # continue $recv_cmd in background
 	}
-	if ($fds->[1]) {
+	if ($io->[1]) {
 		$pids{$pid} = undef;
 	} else {
 		$do_exec->(); # MUA reuses stdout
@@ -116,11 +112,11 @@ $SIG{CONT} = sub { send($sock, 'CONT', MSG_EOR) };
 
 my $x_it_code = 0;
 while (1) {
-	my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);
-	die "recvmsg: $!" if scalar(@fds) == 1 && !defined($fds[0]);
+	my @io = $recv_cmd->($sock, my $buf, 4096 * 33);
+	die "recvmsg: $!" if scalar(@io) == 1 && !defined($io[0]);
 	last if $buf eq '';
 	if ($buf =~ /\Aexec (.+)\z/) {
-		$exec_cmd->(\@fds, split(/\0/, $1));
+		$exec_cmd->(\@io, split(/\0/, $1));
 	} elsif ($buf eq '-WINCH') {
 		kill($buf, @parent); # for MUA
 	} elsif ($buf eq 'umask') {

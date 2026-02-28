@@ -254,7 +254,7 @@ SV *send_cmd4_(PerlIO *s, SV *sio, SV *data, int flags, long tries)
 	return sent >= 0 ? newSViv(sent) : &PL_sv_undef;
 }
 
-void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
+void recv_cmd4_(PerlIO *s, SV *buf, STRLEN n)
 {
 	union my_cmsg cmsg = { 0 };
 	struct msghdr msg = { 0 };
@@ -348,6 +348,11 @@ EOM
 		%RLIMITS = rlimit_map();
 		*send_cmd4 = sub ($$$$;$) {
 			send_cmd4_($_[0], $_[1], $_[2], $_[3], $_[4] // 50);
+		};
+		require PublicInbox::CmdIPC4;
+		*recv_cmd4 = sub ($$$) {
+			my @r = recv_cmd4_($_[0], $_[1], $_[2]);
+			defined($r[0]) ? PublicInbox::CmdIPC4::fd2io(@r) : @r;
 		}
 	} else {
 		require PublicInbox::SpawnPP;

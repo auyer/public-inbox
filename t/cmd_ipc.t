@@ -5,6 +5,7 @@ use v5.12;
 use PublicInbox::TestCommon;
 use autodie;
 use Socket qw(AF_UNIX SOCK_STREAM SOCK_SEQPACKET MSG_EOR);
+use Fcntl qw(F_GETFL);
 pipe(my $r, my $w);
 my ($send, $recv);
 require_ok 'PublicInbox::Spawn';
@@ -17,15 +18,14 @@ my $do_test = sub { SKIP: {
 	socketpair($s1, $s2, AF_UNIX, $type, 0);
 	my $io = [ $r, $w, $s1 ];
 	$send->($s1, $io, $src, $flag);
-	my (@fds) = $recv->($s2, my $buf, length($src) + 1);
+	my @io = $recv->($s2, my $buf, length($src) + 1);
 	is($buf, $src, 'got buffer payload '.$desc);
 	my ($r1, $w1, $s1a);
-	my $opens = sub {
-		ok(open($r1, '<&=', $fds[0]), 'opened received $r');
-		ok(open($w1, '>&=', $fds[1]), 'opened received $w');
-		ok(open($s1a, '+>&=', $fds[2]), 'opened received $s1');
+	my $ck_io = sub {
+		ok fcntl($io[$_], F_GETFL, 0), "open for fd[$_]" for (0..2);
+		($r1, $w1, $s1a) = @io;
 	};
-	$opens->();
+	$ck_io->();
 	my @exp = stat $r;
 	my @cur = stat $r1;
 	is("$exp[0]\0$exp[1]", "$cur[0]\0$cur[1]", '$r dev/ino matches');
@@ -39,18 +39,18 @@ my $do_test = sub { SKIP: {
 		$r1 = $w1 = $s1a = undef;
 		$src = (',' x 1023) . '-' .('.' x 1024);
 		$send->($s1, $io, $src, $flag);
-		(@fds) = $recv->($s2, $buf, 1024);
+		(@io) = $recv->($s2, $buf, 1024);
 		is($buf, (',' x 1023) . '-', 'silently truncated buf');
 
 		socketpair($s1, $s2, AF_UNIX, $type, 0);
-		$opens->();
+		$ck_io->();
 		$r1 = $w1 = $s1a = undef;
 
 		$s2->blocking(0);
-		@fds = $recv->($s2, $buf, length($src) + 1);
+		@io = $recv->($s2, $buf, length($src) + 1);
 		ok($!{EAGAIN}, "EAGAIN set by ($desc)");
 		is($buf, '', "recv buffer emptied on EAGAIN ($desc)");
-		is_deeply(\@fds, [ undef ], "EAGAIN $desc");
+		is_deeply(\@io, [ undef ], "EAGAIN $desc");
 		$s2->blocking(1);
 
 		if ('test ALRM') {
@@ -69,14 +69,14 @@ my $do_test = sub { SKIP: {
 				POSIX::_exit(1);
 			}
 			close $s1;
-			@fds = $recv->($s2, $buf, length($src) + 1);
+			@io= $recv->($s2, $buf, length($src) + 1);
 			waitpid($pid, 0);
-			is_deeply(\@fds, [], "EINTR->EOF $desc");
+			is_deeply(\@io, [], "EINTR->EOF $desc");
 			ok($alrm, 'SIGALRM hit');
 		}
 
-		@fds = $recv->($s2, $buf, length($src) + 1);
-		is_deeply(\@fds, [], "no FDs on EOF $desc");
+		@io = $recv->($s2, $buf, length($src) + 1);
+		is_deeply(\@io, [], "no FDs on EOF $desc");
 		is($buf, '', "buffer cleared on EOF ($desc)");
 
 		socketpair($s1, $s2, AF_UNIX, $type, 0);
@@ -95,14 +95,14 @@ my $do_test = sub { SKIP: {
 		socketpair($s1, $s2, AF_UNIX, $type, 0);
 		is($send->($s1, [], $src, $flag), length($src), 'sent w/o IOs');
 		$buf = 'nope';
-		@fds = $recv->($s2, $buf, length($src));
-		is(scalar(@fds), 0, 'no FDs received');
+		@io = $recv->($s2, $buf, length($src));
+		is(scalar(@io), 0, 'no FDs received');
 		is($buf, $src, 'recv w/o FDs');
 	}
 	socketpair($s1, $s2, AF_UNIX, $type, 0);
 	is($send->($s1, undef, $src, $flag), length($src), 'sent w/ undef IO');
-	@fds = $recv->($s2, $buf = 'hi', length($src));
-	is scalar(@fds), 0, 'no FDs received';
+	@io = $recv->($s2, $buf = 'hi', length($src));
+	is scalar(@io), 0, 'no FDs received';
 	is $buf, $src, 'recv w/o FDs sent buffer';
 } };
 

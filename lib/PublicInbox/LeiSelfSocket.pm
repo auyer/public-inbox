@@ -20,16 +20,15 @@ sub new {
 
 sub event_step {
 	my ($self) = @_;
-	my ($buf, @fds);
-	@fds = $PublicInbox::IPC::recv_cmd->($self->{sock}, $buf, 4096 * 33);
-	if (scalar(@fds) == 1 && !defined($fds[0])) {
+	my ($buf, @io);
+	@io = $PublicInbox::IPC::recv_cmd->($self->{sock}, $buf, 4096 * 33);
+	if (scalar(@io) == 1 && !defined($io[0])) {
 		return if $!{EAGAIN};
 		die "recvmsg: $!" unless $!{ECONNRESET};
-	} else { # just in case open so perl can auto-close them:
-		for (@fds) { open my $fh, '+<&=', $_ };
 	}
 	return $self->close if $buf eq '';
-	warn 'W: unexpected self msg: ', git_quote($buf), " fds=(@fds)\n";
+	warn 'W: unexpected self msg: ', git_quote($buf),
+		' nfds=', scalar(@io), "\n";
 	# TODO: figure out what to do with these messages...
 }
 

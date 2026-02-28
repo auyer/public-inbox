@@ -1156,21 +1156,21 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my ($sock) = @_; # ignore other
 	$sock->autoflush(1);
 	my $self = bless { sock => $sock }, __PACKAGE__;
-	my (@fds, $buf);
+	my (@io, $buf);
 	do {
 		poll_in $sock, 60_000 or return send_gently $sock,
 						'timed out waiting to recv FDs';
 		# (4096 * 33) >(old) MY_MAX_ARG_LEN, TODO: 64K
-		@fds = $PublicInbox::IPC::recv_cmd->($sock, $buf, 4096 * 33)
+		@io = $PublicInbox::IPC::recv_cmd->($sock, $buf, 4096 * 33)
 			or return; # EOF
-	} while (!defined($fds[0]) && $! == EAGAIN);
-	if (!defined($fds[0])) {
+	} while (!defined($io[0]) && $! == EAGAIN);
+	if (!defined($io[0])) {
 		warn(my $msg = "recv_cmd failed: $!");
 		return send_gently $sock, $msg;
 	} else {
-		my $i = 0;
-		open($self->{$i++}, '+<&=', $_) for @fds;
-		$i == 4 or return send_gently $sock, 'not enough FDs='.($i-1);
+		@io == 4 or return
+			send_gently $sock, 'not enough FDs='.scalar(@io);
+		@$self{0..$#io} = @io;
 	}
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
 	# $buf = "$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
@@ -1198,14 +1198,13 @@ sub event_step {
 	local %ENV = %{$self->{env}};
 	local $current_lei = $self;
 	eval {
-		my @fds = $PublicInbox::IPC::recv_cmd->(
+		my @io = $PublicInbox::IPC::recv_cmd->(
 			$self->{sock} // return, my $buf, 4096);
-		if (scalar(@fds) == 1 && !defined($fds[0])) {
+		if (scalar(@io) == 1 && !defined($io[0])) {
 			return if $! == EAGAIN;
 			die "recvmsg: $!" if $! != ECONNRESET;
-			@fds = (); # for open loop below:
+			@io = (); # for open loop below:
 		}
-		for (@fds) { open my $rfh, '+<&=', $_ }
 		if ($buf eq '') {
 			_drop_wq($self); # EOF, client disconnected
 			dclose($self);

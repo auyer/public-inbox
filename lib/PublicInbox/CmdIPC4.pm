@@ -18,6 +18,8 @@ sub sendmsg_retry ($) {
 	1;
 }
 
+sub fd2io (@) { map { open my $fh, '+<&=', $_; $fh } @_ }
+
 BEGIN { eval {
 require Socket::MsgHdr; # XS
 no warnings 'once';
@@ -50,7 +52,7 @@ no warnings 'once';
 	$_[1] = $mh->buf;
 	return () if $r == 0;
 	my (undef, undef, $data) = $mh->cmsghdr;
-	defined($data) ? unpack('i' x (length($data) / 4), $data) : ();
+	defined($data) ? fd2io(unpack('i' x (length($data) / 4), $data)) : ();
 };
 
 } } # /eval /BEGIN

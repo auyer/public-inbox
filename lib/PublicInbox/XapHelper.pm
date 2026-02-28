@@ -271,19 +271,18 @@ sub recv_loop {
 	local $SIG{USR1} = \&reopen_logs;
 	while (defined($in)) {
 		PublicInbox::DS::sig_setmask($workerset);
-		my @fds = eval { # we undef $in in SIG{TERM}
+		my @io = eval { # we undef $in in SIG{TERM}
 			$PublicInbox::IPC::recv_cmd->($in, $rbuf, 4096*33)
 		};
 		if ($@) {
 			exit if !$in; # hit by SIGTERM
 			die;
 		}
-		scalar(@fds) or exit(66); # EX_NOINPUT
-		die "recvmsg: $!" if !defined($fds[0]);
+		scalar(@io) or exit(66); # EX_NOINPUT
+		die "recvmsg: $!" if !defined($io[0]);
 		PublicInbox::DS::block_signals(POSIX::SIGALRM);
 		my $req = bless {}, __PACKAGE__;
-		my $i = 0;
-		open($req->{$i++}, '+<&=', $_) for @fds;
+		@$req{0..$#io} = @io;
 		$req->{1}->autoflush(1) if $req->{1};
 		local $stderr = $req->{1} // \*STDERR;
 		die "not NUL-terminated" if chop($rbuf) ne "\0";

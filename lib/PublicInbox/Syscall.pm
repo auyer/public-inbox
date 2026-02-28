@@ -580,7 +580,8 @@ require PublicInbox::CmdIPC4;
 					$cmsghdr);
 		if ($lvl == SOL_SOCKET && $type == SCM_RIGHTS) {
 			$len -= CMSG_ALIGN_SIZEOF_cmsghdr;
-			@ret = @fds[0..(($len / SIZEOF_int) - 1)];
+			@ret = PublicInbox::CmdIPC4::fd2io(
+					@fds[0..(($len / SIZEOF_int) - 1)]);
 		}
 	}
 	@ret;
