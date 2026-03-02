@@ -556,8 +556,8 @@ sub get_attach {
 }
 
 # User-generated content (UGC) may have excessively long lines
-# and screw up rendering on some browsers, so we use pre-wrap.
-#
+# and screw up rendering on some browsers, so we use overflow-wrap
+# to prevent horizontal overflow from breaking the layout.
 # We also force everything to the same scaled font-size because GUI
 # browsers (tested both Firefox and surf (webkit)) uses a larger font
 # for the Search <form> element than the rest of the page.  Font size
@@ -565,7 +565,7 @@ sub get_attach {
 # Finally, we use monospace to ensure the Search field and button
 # has the same size and spacing as everything else which is
 # <pre>-formatted anyways.
-our $STYLE = 'pre{white-space:pre-wrap}*{font-size:100%;font-family:monospace}';
+our $STYLE = '*{overflow-wrap:anywhere;font-size:100%;font-family:monospace}';
 
 sub _read_css ($$$) {
 	my ($fh, $mini, $fn) = @_;
