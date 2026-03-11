@@ -41,6 +41,7 @@ my $usage_cb = sub {
 GetOptions(my $opt = {}, qw(version|V=i
 	cow! wal indexlevel|index-level|L=s
 	skip-epoch|skip|S=i skip-artnum=i
+	block-size|blocksize=s
 	jobs|j=i newsgroup|ng=s
 	skip-docdata help|h
 	c=s@ C=s@
@@ -118,6 +119,7 @@ require PublicInbox::OnDestroy;
 my $auto_unlink = PublicInbox::OnDestroy::on_destroy(sub { unlink $lockfile });
 my $perm = 0644 & ~umask;
 my (%seen, $old_ibx);
+my $cfg = PublicInbox::Config->new;
 if (-e $pi_config) {
 	require PublicInbox::IO;
 	open(my $oh, '<', $pi_config);
@@ -129,7 +131,6 @@ if (-e $pi_config) {
 
 	# yes, this conflict checking is racy if multiple instances of this
 	# script are run by the same $PI_DIR
-	my $cfg = PublicInbox::Config->new;
 	my $conflict;
 	foreach my $addr (@address) {
 		my $found = $cfg->lookup($addr);
@@ -151,6 +152,7 @@ if (-e $pi_config) {
 	$old_ibx = $cfg->lookup_name($name);
 	$indexlevel //= $old_ibx->{indexlevel} if $old_ibx;
 }
+PublicInbox::Admin::index_prepare($opt, $cfg);
 my $pi_config_tmp = $fh->filename;
 close($fh);
 

@@ -33,7 +33,7 @@ GetOptions($opt, qw(
 	sequential-shard|seq-shard
 	split-shards split-at=s
 	jobs|j=i quiet|q verbose|v
-	blocksize|b=s no-full|n fuller|F
+	block-size|blocksize|b=s no-full|n fuller|F
 	all C=s@ help|h)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 

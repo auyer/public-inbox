@@ -33,14 +33,21 @@ git gc -q
 EOM
 }; # /create_coderepo
 
-ok(run_script([qw(-cindex --dangerous -q -g), "$tmp/wt0"]), 'cindex internal');
-{
+my @bs = block_size_arg;
+ok(run_script([qw(-cindex --dangerous -q -g), "$tmp/wt0", @bs]),
+	'cindex internal');
+SKIP: {
 	my $exists = -e "$tmp/wt0/.git/public-inbox-cindex/cidx.lock";
 	my @st = stat(_);
 	ok($exists, 'internal dir created');
 	is($st[2] & 0600, 0600, 'mode respects core.sharedRepository');
 	@st = stat("$tmp/wt0/.git/public-inbox-cindex");
 	is($st[2] & 0700, 0700, 'dir mode respects core.sharedRepository');
+
+	skip '--block-size= requires SWIG Xapian', 1 if !@bs;
+	my @d = glob("$tmp/wt0/.git/public-inbox-cindex/cidx*/?") or
+		xbail("nothing globbed in $tmp/wt0");
+	is xap_block_size($d[0]), 65536, 'set cindex blocksize';
 }
 
 # it's possible for git to emit NUL characters in diffs

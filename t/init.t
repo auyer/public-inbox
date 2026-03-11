@@ -234,6 +234,25 @@ SKIP: {
 	$check_wal->("$tmpdir/wal-1");
 }
 
+SKIP: {
+	require_mods qw(DBD::SQLite SWIG-Xapian), 2;
+	ok run_script([qw(-init -V2 -j1 --blocksize=64k v2-bs),
+			"$tmpdir/v2-bs",
+			qw(http://example.com/v2-bs v2-bs@example.com)]),
+		'v2 blocksize';
+	my @d = glob "$tmpdir/v2-bs/xap*/0" or xbail 'no v2 shards';
+	is xap_block_size($d[0]), 65536, 'set v2 blocksize';
+
+	ok(run_script([qw(-init --blocksize=64k v1-bs),
+				"$tmpdir/v1-bs",
+				qw(http://example.com/v1-bs
+				v1-bs@example.com)]),
+			'v1 blocksize');
+	@d = glob("$tmpdir/v1-bs/public-inbox/xapian*") or
+		xbail 'no public-inbox/xapian* dir';
+	is(xap_block_size($d[0]), 65536, 'set v1 blocksize');
+}
+
 {
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cmd = [ qw(-init -C), "$tmpdir", qw(chdirlist chdirlist),

@@ -9,7 +9,7 @@ use PublicInbox::Lock;
 use PublicInbox::Admin qw(setup_signals);
 use PublicInbox::Over;
 use PublicInbox::Search qw(xap_terms);
-use PublicInbox::SearchIdx;
+use PublicInbox::SearchIdx qw(xap_wdb);
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use POSIX qw(WNOHANG dup _exit);
@@ -21,7 +21,8 @@ use Carp qw(croak);
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
 our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
-our @COMPACT_OPT = qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F);
+our @COMPACT_OPT = qw(jobs|j=i quiet|q block-size|blocksize|b=s
+		no-full|n fuller|F);
 my %SKIP = map { $_ => 1 } qw(. ..);
 
 my $reap_compact = sub { # awaitpid cb
@@ -391,8 +392,12 @@ sub compact_cmd ($) {
 	for my $sw (qw(no-full fuller multipass)) {
 		push(@$cmd, "--$sw") if $opt->{$sw};
 	}
-	for my $sw (qw(blocksize)) {
-		push(@$cmd, "--$sw", $opt->{$sw}) if defined $opt->{$sw}
+	for my $sw (qw(block-size)) {
+		my $v = $opt->{$sw} // next;
+		PublicInbox::Admin::parse_unsigned \$v;
+		my $xsw = $sw;
+		$xsw =~ tr/-//d; # we prefer '-' to delimit words in switches
+		push @$cmd, "--$xsw", $opt->{$sw};
 	}
 	$cmd;
 }
@@ -506,7 +511,7 @@ sub cidx_reshard { # not docid based
 		my $tmp = $opt->{compact} ?
 				compact_tmp_shard($wip, $opt) : $wip;
 		push @tmp, $tmp;
-		$X->{WritableDatabase}->new($tmp->dirname, $flag);
+		xap_wdb $tmp->dirname, $flag, $opt;
 	} @$queue;
 	my $l = $src->get_metadata('indexlevel');
 	$dst[0]->set_metadata('indexlevel', $l) if $l eq 'medium';
@@ -588,7 +593,7 @@ sub cpdb ($$$) { # cb_spawn callback
 	# like copydatabase(1), be sure we don't overwrite anything in case
 	# of other bugs:
 	my $new = $wip->dirname;
-	my $dst = $X->{WritableDatabase}->new($tmp->dirname, $flag);
+	my $dst = xap_wdb $tmp->dirname, $flag, $opt;
 	my $pr = $opt->{-progress};
 	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);
 	my $pr_data = { pr => $pr, pfx => $pfx, nr => 0 } if $pr;

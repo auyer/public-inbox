@@ -44,13 +44,18 @@ run_script(['-mda', '--no-precheck'], $env, { 0 => $in }) or BAIL_OUT '-mda';
 
 run_script([qw(-index -Lbasic), "$home/v1test"]) or BAIL_OUT "index $?";
 
-ok(run_script([qw(-extindex --dangerous --all --wal), "$home/extindex"]),
+my @bs = block_size_arg;
+ok(run_script([qw(-extindex --dangerous --all --wal), @bs, $eidxdir]),
 	'extindex init');
-{
-	my $es = PublicInbox::ExtSearch->new("$home/extindex");
+SKIP: {
+	my $es = PublicInbox::ExtSearch->new($eidxdir);
 	ok($es->has_threadid, '->has_threadid');
 	my $jm = $es->over->dbh->selectrow_array('PRAGMA journal_mode');
 	is $jm, 'wal', "--wal enables `journal_mode = wal' in over.sqlite3";
+
+	skip '--block-size= requires SWIG Xapian', 1 if !@bs;
+	my @d = glob "$eidxdir/ei*/?";
+	is xap_block_size($d[0]), 65536, 'set extindex blocksize';
 }
 
 if ('with boost') {

@@ -75,16 +75,23 @@ ok(defined($hwm) && $hwm > 0, "highwater mark set #$hwm");
 $cmd = [ '-convert', '--no-index', $ibx->{inboxdir}, "$tmpdir/no-index" ];
 ok(run_script($cmd, undef, $rdr), 'convert --no-index works');
 
-$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/x/v2" ];
+my @bs = block_size_arg;
+$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/x/v2", @bs ];
 ok(run_script($cmd, undef, $rdr), 'convert works');
 @xdir = glob("$tmpdir/x/v2/xap*/*");
-for (@xdir) { # TODO: should public-inbox-convert preserve S_ISGID bit?
-	my @st = stat($_);
+for my $d (@xdir) { # TODO: should public-inbox-convert preserve S_ISGID bit?
+	my @st = stat($d);
 	oct_is($st[2] & 07777, -f _ ? 0644 : 0755,
 		'sharedRepository respected after convert');
 }
+SKIP: {
+	skip 'SWIG Xapian required for --block-size=', 1 if !@bs;
+	for my $d (grep(m!/(?:[0-9]+)\z!, @xdir)) {
+		 is xap_block_size($d), 65536, '-convert set block size';
+	}
+}
 
-$cmd = [ '-compact', "$tmpdir/x/v2" ];
+$cmd = [ '-compact', @bs, "$tmpdir/x/v2" ];
 my $env = { NPROC => 2 };
 ok(run_script($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{inboxdir} = "$tmpdir/x/v2";
@@ -97,11 +104,19 @@ is $ibx->over->dbh->selectrow_array('PRAGMA journal_mode'), 'wal',
 $ibx->cleanup;
 
 @xdir = glob("$tmpdir/x/v2/xap*/*");
-foreach (@xdir) {
-	my @st = stat($_);
+for my $d (@xdir) {
+	my @st = stat($d);
 	oct_is($st[2] & 07777, -f _ ? 0644 : 0755,
 		'sharedRepository respected after v2 compact');
+	$d =~ m!/([0-9]+)\z! or next;
 }
+SKIP: {
+	skip 'SWIG Xapian required for --block-size=', 1 if !@bs;
+	for my $d (grep(m!/(?:[0-9]+)\z!, @xdir)) {
+		 is xap_block_size($d), 65536, '-compact set block size';
+	}
+}
+
 oct_is(((stat("$tmpdir/x/v2/msgmap.sqlite3"))[2]) & 07777, 0644,
 	'sharedRepository respected for v2 msgmap');
 

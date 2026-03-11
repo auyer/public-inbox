@@ -33,7 +33,7 @@ sub _init_v1 {
 	my $opt = $self->{-creat_opt} // {};
 	my $skip_artnum = $opt->{'skip-artnum'};
 	if (defined($self->{indexlevel}) || defined($skip_artnum) ||
-			$opt->{wal}) {
+			$opt->{wal} || $opt->{'block-size'}) {
 		require PublicInbox::SearchIdx;
 		require PublicInbox::Msgmap;
 		my $sidx = PublicInbox::SearchIdx->new($self, $opt);

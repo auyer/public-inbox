@@ -34,7 +34,7 @@ use File::Path ();
 use Config;
 our @EXPORT_OK = qw(log2stack is_ancestor check_size prepare_stack
 	index_text term_generator add_val is_bad_blob update_checkpoint
-	add_bool_term);
+	add_bool_term xap_wdb);
 my $X = \%PublicInbox::Search::X;
 our ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -208,6 +208,24 @@ sub load_xapian_writable () {
 	1;
 }
 
+sub xap_wdb ($$;$$) {
+	my ($dir, $flags, $opt, $self) = @_;
+	my (@arg, $bs);
+	if (!($flags & $DB_OPEN) && ($bs = $opt->{'block-size'})) {
+		if ($PublicInbox::Search::Xap eq 'Xapian') {
+			@arg = ($bs);
+		} else {
+			warn <<EOM if !$opt->{-block_size_warned}++;
+--block-size=$arg[0] is not supported by `Search::Xapian' XS bindings;
+newer `Xapian' SWIG bindings are required.
+EOM
+		}
+	}
+	my $xdb = eval { $X->{WritableDatabase}->new($dir, $flags, @arg) };
+	croak "Failed opening $dir: $@" if $@;
+	$xdb;
+}
+
 sub idx_acquire {
 	my ($self) = @_;
 	my $flag;
@@ -236,8 +254,7 @@ sub idx_acquire {
 	}
 	return unless defined $flag;
 	$flag |= $DB_NO_SYNC if !$self->{-opt}->{fsync};
-	my $xdb = eval { ($X->{WritableDatabase})->new($dir, $flag) };
-	croak "Failed opening $dir: $@" if $@;
+	my $xdb = xap_wdb $dir, $flag, $self->{-opt}, $self;
 	$xdb->begin_transaction;
 	my $cur = $xdb->get_metadata('split-at');
 	if ($cur || $self->{-opt}->{'split-shards'}) {
@@ -627,7 +644,7 @@ sub _xdb_tmp_new ($$$) {
 	$flags |= $DB_DANGEROUS | $DB_NO_SYNC;
 	my $xdb_tmp;
 	eval {
-		$xdb_tmp = $X->{WritableDatabase}->new($dir, $flags);
+		$xdb_tmp = xap_wdb $dir, $flags, $self->{-opt};
 		$xdb_tmp->begin_transaction;
 	};
 	if (my $err = $@) { # rethrow for stacktrace w/ PERL5OPT=-MCarp=verbose

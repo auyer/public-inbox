@@ -33,12 +33,14 @@ BEGIN {
 		test_httpd no_httpd_errors xbail require_cmd is_xdeeply tail_f
 		ignore_inline_c_missing no_coredump cfg_new
 		require_fast_reliable_signals
-		strace strace_inject lsof_pid oct_is $find_xh_pid);
+		strace strace_inject lsof_pid oct_is $find_xh_pid
+		block_size_arg xap_block_size);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
-	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
+	eval(join('', (map { "*$_=\\&Test::More::$_;" } @methods),
+		'*TODO = \*Test::More::TODO;'));
 	die $@ if $@;
-	push @EXPORT, @methods;
+	push @EXPORT, @methods, '$TODO';
 }
 
 sub kernel_version () {
@@ -245,9 +247,15 @@ sub require_mods (@) {
 			push @mods, qw(DBD::SQLite);
 			next;
 		}
-		if ($mod eq 'Xapian') {
+		if ($mod eq 'Xapian' || $mod eq 'SWIG-Xapian') {
 			if (eval { require PublicInbox::Search } &&
-				PublicInbox::Search::load_xapian()) {
+					PublicInbox::Search::load_xapian()) {
+				if ($mod eq 'SWIG-Xapian') {
+					my $x = eval
+						'$PublicInbox::Search::Xap';
+					$x eq 'Xapian' or push @need,
+						'SWIG Xapian bindings (not XS)';
+				}
 				next;
 			}
 		} elsif ($mod eq '+SCM_RIGHTS') {
@@ -1022,6 +1030,25 @@ sub test_httpd ($$;$$) {
 		no_httpd_errors $err;
 	}
 };
+
+sub block_size_arg (;$) {
+	my @bs;
+	SKIP: {
+		require_mods qw(SWIG-Xapian), 1;
+		@bs = ('--block-size='.($_[0] ? $_[0] : '64k'));
+	}
+	@bs;
+}
+
+sub xap_block_size ($) {
+	my ($dir) = @_;
+	state $ck = require_cmd 'xapian-check', 1;
+	$ck or skip 'xapian-check missing', 1;
+	my $out = xqx([$ck, $dir]);
+	$out =~ /\bblocksize=([0-9]+)K/ or
+		skip "no blocksize reported by `$ck $dir':\n", $out;
+	$1 * 1024;
+}
 
 # TODO: support fstat(1) on OpenBSD, lsof already works on FreeBSD + Linux
 # don't use this for deleted file checks, we only check that on Linux atm

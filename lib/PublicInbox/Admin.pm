@@ -363,9 +363,10 @@ sub index_prepare ($$) {
 			$opt->{compact_opt}->{jobs} = $jobs;
 		}
 	}
-	for my $k (qw(max_size batch_size)) {
+	# TODO: replace underscore w/ '-' for *_size
+	for my $k (qw(max_size batch_size block-size)) {
 		my $git_key = "publicInbox.index".ucfirst($k);
-		$git_key =~ s/_([a-z])/\U$1/g;
+		$git_key =~ s/[_\-]([a-z])/\U$1/g;
 		defined(my $v = $opt->{$k} // $cfg->{lc($git_key)}) or next;
 		parse_unsigned(\$v) or die "`$git_key=$v' not parsed\n";
 		$v > 0 or die "`$git_key=$v' must be positive\n";

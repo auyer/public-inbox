@@ -15,7 +15,8 @@ use strict;
 use v5.10.1;
 use PublicInbox::InboxWritable;
 use PublicInbox::Search; # for SWIG Xapian and Search::Xapian compat
-use PublicInbox::SearchIdx qw(index_text term_generator add_val add_bool_term);
+use PublicInbox::SearchIdx qw(index_text term_generator add_val add_bool_term
+	xap_wdb);
 use Carp qw(croak);
 use File::Path ();
 use PublicInbox::MiscSearch;
@@ -38,15 +39,14 @@ sub new {
 	bless {
 		mi_dir => $mi_dir,
 		flags => $flags,
+		opt => $opt,
 		indexlevel => 'full', # small DB, no point in medium?
 	}, $class;
 }
 
 sub _begin_txn ($) {
 	my ($self) = @_;
-	my $wdb = $PublicInbox::Search::X{WritableDatabase};
-	my $xdb = eval { $wdb->new($self->{mi_dir}, $self->{flags}) };
-	croak "Failed opening $self->{mi_dir}: $@" if $@;
+	my $xdb = xap_wdb $self->{mi_dir}, $self->{flags}, $self->{opt};
 	$xdb->begin_transaction;
 	$xdb;
 }

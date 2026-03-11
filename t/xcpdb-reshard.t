@@ -39,13 +39,22 @@ my $XapianDatabase = do {
 	no warnings 'once';
 	$PublicInbox::Search::X{Database};
 };
+
+my @bs = block_size_arg;
+
 # ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
 	my $cmd = [@xcpdb, "-R$R", $ibx->{inboxdir}];
+	push @$cmd, @bs if $R == 1;
 	push @$cmd, '--compact' if $R == 1 && have_xapian_compact(1);
 	ok(run_script($cmd, $env), "xcpdb -R$R");
 	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
+	if ($R == 1) { SKIP: {
+		skip '--block-size= requires SWIG Xapian', 1, if !@bs;
+		is xap_block_size($new_shards[0]), 65536,
+			'-xcpdb sets blocksize';
+	} }
 	is(scalar(@new_shards), $R, 'resharded to two shards');
 	is $ibx->search->xdb->get_metadata('has_threadid'),
 		'1', 'has_threadid set';

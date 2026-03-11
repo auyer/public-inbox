@@ -40,6 +40,7 @@ GetOptions($opt, qw(jobs|j=i index! help|h C=s@),
 		commit-interval|commit=i batch_size|batch-size=s cow! wal
 		split-shards split-at=s multipass
 		sequential-shard|seq-shard
+		block-size|blocksize=s
 		)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 require PublicInbox::Admin;
@@ -67,7 +68,7 @@ die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 my $detected = $old->detect_indexlevel;
 $old->{indexlevel} //= $detected;
 my $env;
-if ($opt->{'index'}) {
+if ($opt->{'index'} || $opt->{'block-size'}) {
 	my $mods = {};
 	PublicInbox::Admin::scan_ibx_modules($mods, $old);
 	PublicInbox::Admin::require_or_die(keys %$mods);
