@@ -10,6 +10,7 @@ use PublicInbox::Admin qw(setup_signals);
 use PublicInbox::Over;
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::SearchIdx qw(xap_wdb);
+use PublicInbox::SQLiteUtil;
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use POSIX qw(WNOHANG dup _exit);
@@ -95,7 +96,8 @@ sub commit_changes ($$$$) {
 			defined $new or die "BUG: $over exists when culling v2";
 			$over = PublicInbox::Over->new($over);
 			my $tmp_over = "$new/over.sqlite3";
-			$over->dbh->sqlite_backup_to_file($tmp_over);
+			PublicInbox::SQLiteUtil::copy_db($over->dbh,
+							$tmp_over, $opt);
 			$over = undef;
 			$over_chg = 1;
 		}

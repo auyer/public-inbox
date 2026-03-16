@@ -53,6 +53,7 @@ die "$old_dir not a directory\n" unless -d $old_dir;
 
 require PublicInbox::Config;
 require PublicInbox::InboxWritable;
+require PublicInbox::SQLiteUtil;
 
 my $cfg = PublicInbox::Config->new;
 my @old = PublicInbox::Admin::resolve_inboxes([$old_dir], undef, $cfg);
@@ -110,10 +111,9 @@ sub link_or_copy ($$) {
 		foreach my $i (0..$#$alt) {
 			my $src = PublicInbox::AltId->new($old, $alt->[$i], 0);
 			$src = $src->mm_alt($opt) or next;
-			$src = $src->{dbh}->sqlite_db_filename;
 			my $dst = PublicInbox::AltId->new($new, $alt->[$i], 1);
-			$dst->mm_alt($opt)->{dbh}->
-				sqlite_backup_from_file($src);
+			PublicInbox::SQLiteUtil::copy_db($src->{dbh},
+							$dst->{filename}, $opt);
 		}
 	}
 	my $desc = "$old->{inboxdir}/description";
@@ -168,16 +168,16 @@ while (<$rd>) {
 }
 $rd->close or die "fast-export: \$?=$? \$!=$!\n";
 $io = undef;
+my $mm_fn = $v2w->{mm}->{dbh}->sqlite_db_filename // die 'BUG: no mm filename';
 $v2w->done;
 if (my $old_mm = $old->mm) {
 	$old->cleanup;
-	$old_mm = $old_mm->{dbh}->sqlite_db_filename;
 
 	# we want to trigger a reindex, not a from scratch index if
 	# we're reusing the msgmap from an existing v1 installation.
-	$v2w->idx_init($opt);
-	$v2w->{mm}->{dbh}->sqlite_backup_from_file($old_mm);
+	PublicInbox::SQLiteUtil::copy_db($old_mm->{dbh}, $mm_fn, $opt);
 
+	$v2w->idx_init($opt);
 	my $epoch0 = PublicInbox::Git->new($v2w->{mg}->add_epoch(0));
 	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
 	$v2w->last_epoch_commit(0, $cmt);

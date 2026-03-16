@@ -4,7 +4,8 @@
 # common bits for SQLite users in our codebase
 package PublicInbox::SQLiteUtil;
 use v5.12;
-use autodie qw(open);
+use autodie qw(open truncate);
+use DBI ();
 
 my %SQLITE_GLOB_MAP = (
 	'[' => '[[]',
@@ -37,6 +38,36 @@ sub create_db ($;$) {
 	}
 	# SQLite defaults mode to 0644, we want 0666 to respect umask
 	open my $fh, '+>>', $f;
+}
+
+sub dbh_open ($;@) {
+	my ($f, @opt) = @_;
+	DBI->connect("dbi:SQLite:dbname=$f",'','', {
+		AutoCommit => 1,
+		RaiseError => 1,
+		PrintError => 0,
+		sqlite_use_immediate_transaction => 1,
+		@opt,
+	});
+}
+
+# try to save some space on SQLite 3.27+ using `VACUUM INTO',
+# preserves WAL
+sub copy_db ($$;$) {
+	my ($dbh, $f, $opt) = @_;
+	if (-e $f) { # VACUUM INTO requires empty/non-existent file
+		truncate($f, 0) if -s _;
+	} else {
+		create_db $f, $opt;
+	}
+	if (eval('"v$DBD::SQLite::sqlite_version"') ge v3.27) {
+		$dbh->do('VACUUM INTO '.$dbh->quote($f));
+		if ($dbh->selectrow_array('PRAGMA journal_mode') eq 'wal') {
+			dbh_open($f)->do('PRAGMA journal_mode = WAL');
+		}
+	} else {
+		$dbh->sqlite_backup_to_file($f);
+	}
 }
 
 1;
