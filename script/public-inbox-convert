@@ -109,10 +109,11 @@ sub link_or_copy ($$) {
 		require PublicInbox::AltId;
 		foreach my $i (0..$#$alt) {
 			my $src = PublicInbox::AltId->new($old, $alt->[$i], 0);
-			$src = $src->mm_alt or next;
+			$src = $src->mm_alt($opt) or next;
 			$src = $src->{dbh}->sqlite_db_filename;
 			my $dst = PublicInbox::AltId->new($new, $alt->[$i], 1);
-			$dst->mm_alt->{dbh}->sqlite_backup_from_file($src);
+			$dst->mm_alt($opt)->{dbh}->
+				sqlite_backup_from_file($src);
 		}
 	}
 	my $desc = "$old->{inboxdir}/description";

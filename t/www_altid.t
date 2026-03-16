@@ -5,11 +5,9 @@ use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(spawn);
 require_cmd('sqlite3');
-require_mods qw(DBD::SQLite psgi Xapian);
-use_ok($_) for qw(Plack::Test HTTP::Request::Common);
+require_mods qw(DBD::SQLite Xapian);
 require_ok 'PublicInbox::Msgmap';
 require_ok 'PublicInbox::AltId';
-require_ok 'PublicInbox::WWW';
 require IO::Uncompress::Gunzip;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $aid = 'xyz';
@@ -39,7 +37,6 @@ EOF
 };
 $cfgpath //= "$ibx->{inboxdir}/cfg";
 my $cfg = PublicInbox::Config->new($cfgpath);
-my $www = PublicInbox::WWW->new($cfg);
 my $cmpfile = "$tmpdir/cmp.sqlite3";
 my $client = sub {
 	my ($cb) = @_;
@@ -66,9 +63,27 @@ my $client = sub {
 	is $res->code, 200, 'altid help hit';
 	like $res->content, qr/\b$aid:/, 'altid shown in help';
 };
-test_psgi(sub { $www->call(@_) }, $client);
+my $env = { PI_CONFIG => $cfgpath, TMPDIR => $tmpdir };
 SKIP: {
-	my $env = { PI_CONFIG => $cfgpath, TMPDIR => $tmpdir };
+	require_mods 'psgi', 1;
+	require_ok 'PublicInbox::WWW';
+	my $www = PublicInbox::WWW->new($cfg);
+	test_psgi(sub { $www->call(@_) }, $client);
 	test_httpd($env, $client);
 }
+
+SKIP: {
+	require_git v2.6, 1;
+	my ($out, $err) = ('', '');
+	my $rdr = { 1 => \$out, 2 => \$err };
+	my $v2dir = "$tmpdir/v2";
+	run_script([qw(-convert --wal), $ibx->{inboxdir}, $v2dir],
+			$env, $rdr) or xbail "-convert: $err";
+	my $altid_file = "$v2dir/blah.sqlite3";
+	ok -s $altid_file, 'altid msgmap copied';
+	my $alt_mm = PublicInbox::Msgmap->new_file($altid_file);
+	is $alt_mm->{dbh}->selectrow_array('PRAGMA journal_mode'),
+		'wal', '-convert --wal affects copied altid SQLite DB';
+}
+
 done_testing;
