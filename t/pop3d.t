@@ -57,14 +57,10 @@ my @old_args = ($plain->sockhost, Port => $plain->sockport);
 my $oldc = Net::POP3->new(@old_args);
 my $locked_mb = ('e'x32)."\@$group";
 ok($oldc->apop("$locked_mb.0", 'anonymous'), 'APOP to old');
+require PublicInbox::SQLiteUtil;
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpdir/p3state/db.sqlite3",'','', {
-	AutoCommit => 1,
-	RaiseError => 1,
-	PrintError => 0,
-	sqlite_use_immediate_transaction => 1,
-	sqlite_see_if_its_a_number => 1,
-});
+my $dbh = PublicInbox::SQLiteUtil::dbh_open("$tmpdir/p3state/db.sqlite3",
+	sqlite_see_if_its_a_number => 1);
 
 { # locking within the same process
 	my $x = Net::POP3->new(@old_args);

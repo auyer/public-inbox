@@ -129,13 +129,8 @@ sub state_dbh_new {
 	my $creat = !-s $f;
 	PublicInbox::SQLiteUtil::create_db $f if $creat;
 
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
-		AutoCommit => 1,
-		RaiseError => 1,
-		PrintError => 0,
-		sqlite_use_immediate_transaction => 1,
-		sqlite_see_if_its_a_number => 1,
-	});
+	my $dbh = PublicInbox::SQLiteUtil::dbh_open($f,
+		sqlite_see_if_its_a_number => 1);
 	$dbh->do('PRAGMA journal_mode = WAL') if $creat;
 	$dbh->do('PRAGMA foreign_keys = ON'); # don't forget this
 

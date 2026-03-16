@@ -19,12 +19,7 @@ sub dbh_new {
 	my $f = $self->{filename};
 	my $creat = !-s $f;
 	PublicInbox::SQLiteUtil::create_db $f if $creat;
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
-		AutoCommit => 1,
-		RaiseError => 1,
-		PrintError => 0,
-		sqlite_use_immediate_transaction => 1,
-	});
+	my $dbh = PublicInbox::SQLiteUtil::dbh_open($f);
 	# no sqlite_unicode, here, all strings are binary
 	create_tables($self, $dbh);
 	$dbh->do('PRAGMA journal_mode = WAL') if $creat;

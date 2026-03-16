@@ -19,13 +19,8 @@ sub dbh {
 	$self->{dbh} // do {
 		my $f = $self->{filename};
 		$lock //= $self->lock_for_scope_fast;
-		my $dbh = DBI->connect("dbi:SQLite:dbname=$f", '', '', {
-			AutoCommit => 1,
-			RaiseError => 1,
-			PrintError => 0,
-			sqlite_use_immediate_transaction => 1,
-			# no sqlite_unicode here, this is for binary data
-		});
+		# no sqlite_unicode here, this is for binary data
+		my $dbh = PublicInbox::SQLiteUtil::dbh_open($f);
 		my $opt = $self->{opt} // {};
 		$dbh->do('PRAGMA synchronous = OFF') if !$opt->{fsync};
 		$dbh->do('PRAGMA journal_mode = '.

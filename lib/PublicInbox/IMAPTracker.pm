@@ -23,12 +23,7 @@ CREATE TABLE IF NOT EXISTS imap_last (
 
 sub dbh_new ($) {
 	my ($dbname) = @_;
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$dbname", '', '', {
-		AutoCommit => 1,
-		RaiseError => 1,
-		PrintError => 0,
-		sqlite_use_immediate_transaction => 1,
-	});
+	my $dbh = PublicInbox::SQLiteUtil::dbh_open($dbname);
 	$dbh->{sqlite_unicode} = 1;
 
 	# TRUNCATE reduces I/O compared to the default (DELETE).

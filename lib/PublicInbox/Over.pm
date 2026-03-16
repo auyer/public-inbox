@@ -27,17 +27,12 @@ sub dbh_new {
 		}
 	}
 	my (@st, $st, $dbh);
+	my @ro = $rw ? () : (ReadOnly => 1);
 	my $tries = 0;
 	do {
 		@st = stat($f) or die "failed to stat $f: $!";
 		$st = pack('dd', $st[0], $st[1]); # 0: dev, 1: inode
-		$dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
-			AutoCommit => 1,
-			RaiseError => 1,
-			PrintError => 0,
-			ReadOnly => !$rw,
-			sqlite_use_immediate_transaction => 1,
-		});
+		$dbh = PublicInbox::SQLiteUtil::dbh_open($f, @ro);
 		$self->{st} = $st;
 		@st = stat($f) or die "failed to stat $f: $!";
 		$st = pack('dd', $st[0], $st[1]);

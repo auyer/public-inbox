@@ -8,13 +8,7 @@ use_ok 'PublicInbox::SQLiteUtil';
 require DBI;
 DBI->import(':sql_types');
 
-my $dbh = DBI->connect('dbi:SQLite:dbname=:memory:', '', '', {
-	AutoCommit => 1,
-	RaiseError => 1,
-	PrintError => 0,
-	sqlite_use_immediate_transaction => 1,
-});
-
+my $dbh = PublicInbox::SQLiteUtil::dbh_open(':memory:');
 $dbh->do('CREATE TABLE test (key BLOB NOT NULL, UNIQUE (key))');
 
 my $ins = $dbh->prepare('INSERT INTO test (key) VALUES (?)');
