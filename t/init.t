@@ -145,12 +145,8 @@ SKIP: {
 			qw(http://example.com/v1pgsz v2pgsize@example.com) ];
 	ok run_script($cmd), 'public-inbox-init -V1 --sqlite-page-size';
 	$check_pgsz->("$tmpdir/v1pgsz");
-	TODO: {
-		local $TODO = "v1 Xapian DB not created via SQLite-only switch";
-		my @f = glob("$tmpdir/v1pgsz/public-inbox/xapian*/flintlock");
-		is scalar(@f), 0,
-			'no v1 Xapian by default with only --sqlite-page-size=';
-	}
+	my @f = glob("$tmpdir/v1pgsz/public-inbox/xapian*/flintlock");
+	is scalar(@f), 0, 'no v1 Xapian by default with only --sqlite-page-size=';
 }
 
 SKIP: {

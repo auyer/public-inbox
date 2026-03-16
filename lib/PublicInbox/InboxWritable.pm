@@ -38,6 +38,7 @@ sub _init_v1 {
 				$need_sqlite) {
 		require PublicInbox::SearchIdx;
 		require PublicInbox::Msgmap;
+		$self->{indexlevel} //= 'basic' if $need_sqlite;
 		my $sidx = PublicInbox::SearchIdx->new($self, $opt);
 		$sidx->begin_txn_lazy;
 		my $mm = PublicInbox::Msgmap->new_file($self, $opt);
