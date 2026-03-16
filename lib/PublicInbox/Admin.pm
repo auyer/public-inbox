@@ -364,7 +364,7 @@ sub index_prepare ($$) {
 		}
 	}
 	# TODO: replace underscore w/ '-' for *_size
-	for my $k (qw(max_size batch_size block-size)) {
+	for my $k (qw(max_size batch_size block-size sqlite-page-size)) {
 		my $git_key = "publicInbox.index".ucfirst($k);
 		$git_key =~ s/[_\-]([a-z])/\U$1/g;
 		defined(my $v = $opt->{$k} // $cfg->{lc($git_key)}) or next;

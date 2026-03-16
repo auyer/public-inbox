@@ -76,14 +76,22 @@ $cmd = [ '-convert', '--no-index', $ibx->{inboxdir}, "$tmpdir/no-index" ];
 ok(run_script($cmd, undef, $rdr), 'convert --no-index works');
 
 my @bs = block_size_arg;
-$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/x/v2", @bs ];
-ok(run_script($cmd, undef, $rdr), 'convert works');
+$cmd = [ qw(-convert --sqlite-page-size=64k), $ibx->{inboxdir},
+	"$tmpdir/x/v2", @bs ];
+ok(run_script($cmd, undef, $rdr), 'convert works') or diag explain($rdr);
 @xdir = glob("$tmpdir/x/v2/xap*/*");
 for my $d (@xdir) { # TODO: should public-inbox-convert preserve S_ISGID bit?
 	my @st = stat($d);
 	oct_is($st[2] & 07777, -f _ ? 0644 : 0755,
 		'sharedRepository respected after convert');
 }
+$ibx->{inboxdir} = "$tmpdir/x/v2";
+$ibx->{version} = 2;
+is $ibx->mm->{dbh}->selectrow_array('PRAGMA page_size'), 64 * 1024,
+	'-convert sets --sqlite-page-size on msgmap.sqlite3';
+is $ibx->over->dbh->selectrow_array('PRAGMA page_size'), 64 * 1024,
+	'-convert sets --sqlite-page-size on over.sqlite3';
+$ibx->cleanup;
 SKIP: {
 	skip 'SWIG Xapian required for --block-size=', 1 if !@bs;
 	for my $d (grep(m!/(?:[0-9]+)\z!, @xdir)) {
@@ -94,8 +102,6 @@ SKIP: {
 $cmd = [ '-compact', @bs, "$tmpdir/x/v2" ];
 my $env = { NPROC => 2 };
 ok(run_script($cmd, $env, $rdr), 'v2 compact works');
-$ibx->{inboxdir} = "$tmpdir/x/v2";
-$ibx->{version} = 2;
 is($ibx->mm->num_highwater, $hwm, 'highwater mark unchanged in v2 inbox');
 is $ibx->mm->{dbh}->selectrow_array('PRAGMA journal_mode'), 'wal',
 	'-convert preserves msgmap.sqlite3 wal';

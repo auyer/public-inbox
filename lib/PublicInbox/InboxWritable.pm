@@ -32,8 +32,10 @@ sub _init_v1 {
 	my ($self) = @_;
 	my $opt = $self->{-creat_opt} // {};
 	my $skip_artnum = $opt->{'skip-artnum'};
-	if (defined($self->{indexlevel}) || defined($skip_artnum) ||
-			$opt->{wal} || $opt->{'block-size'}) {
+	my $need_sqlite = defined($skip_artnum) || $opt->{wal} ||
+			$opt->{'sqlite-page-size'};
+	if (defined($self->{indexlevel}) || $opt->{'block-size'} ||
+				$need_sqlite) {
 		require PublicInbox::SearchIdx;
 		require PublicInbox::Msgmap;
 		my $sidx = PublicInbox::SearchIdx->new($self, $opt);

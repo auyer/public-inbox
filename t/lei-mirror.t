@@ -177,8 +177,9 @@ SKIP: {
 	is_deeply($before, $after, 'no new files created');
 
 	local $ENV{HOME} = $tmpdir;
-	ok(run_script([qw(-index -Lbasic), "$d/t1"]), 'index v1');
-	ok(run_script([qw(-index -Lbasic), "$d/t2"]), 'index v2');
+	my @idx_cmd = qw(-index -Lbasic --sqlite-page-size=64k);
+	ok run_script([@idx_cmd, "$d/t1"]), 'index v1';
+	ok run_script([@idx_cmd, "$d/t2"]), 'index v2';
 
 	SKIP: {
 		join('', sort(keys %created)) eq 'v1v2' or
@@ -190,6 +191,16 @@ SKIP: {
 		$f = "$d/t2/msgmap.sqlite3";
 		$ca = PublicInbox::Msgmap->new_file($f)->created_at;
 		is($ca, $created{v2}, 'clone + index v2 synced ->created_at');
+		my @ov = glob("$d/t1/public-inbox/xapian*/over.sqlite3") or
+			xbail 'over.sqlite3 not found for v1';
+		my $dbh = PublicInbox::SQLiteUtil::dbh_open($ov[0]);
+		is $dbh->selectrow_array('PRAGMA page_size'),
+			(64 * 1024), '-index --sqlite-page-size= for v1';
+		@ov = glob("$d/t2/xap*/over.sqlite3") or
+			xbail 'over.sqlite3 not found for v2';
+		$dbh = PublicInbox::SQLiteUtil::dbh_open($ov[0]);
+		is $dbh->selectrow_array('PRAGMA page_size'),
+			(64 * 1024), '-index --sqlite-page-size= for v2';
 	}
 	test_lei(sub {
 		lei_ok qw(inspect num:1 --dir), "$d/t1";

@@ -14,6 +14,13 @@ my $d = PublicInbox::Msgmap->new_file($f, { wal => 1 });
 is $d->{dbh}->selectrow_array('PRAGMA journal_mode'), 'wal',
 	'wal in options hashref respected';
 
+require PublicInbox::SQLiteUtil;
+PublicInbox::SQLiteUtil::set_page_size_now($d->{dbh}, 64 * 1024);
+is $d->{dbh}->selectrow_array('PRAGMA page_size'), 64 * 1024,
+	'page_size can be changed immediately';
+is $d->{dbh}->selectrow_array('PRAGMA journal_mode'), 'wal',
+	'wal restored after changing page_size';
+
 my %mid2num;
 my %num2mid;
 my @mids = qw(a@b c@d e@f g@h aa@bb aa@cc);

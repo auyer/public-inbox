@@ -64,7 +64,7 @@ my $import_index_incremental = sub {
 
 	# inbox init
 	local $ENV{PI_CONFIG} = "$tmpdir/.picfg";
-	@cmd = ('-init', '-L', $level,
+	@cmd = ('-init', '-L', $level, qw(--sqlite-page-size=64k),
 		'mirror', $mirror, '//example.com/test', 'test@example.com');
 	push @cmd, '-V2' if $v == 2;
 	ok(run_script(\@cmd), "v$v init OK");
@@ -80,6 +80,8 @@ my $import_index_incremental = sub {
 	$msgs = $ro_mirror->over->recent;
 	is(scalar(@$msgs), 1, 'only one message, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'read first message');
+	is $ro_mirror->over->dbh->selectrow_array('PRAGMA page_size'),
+		(64 * 1024), '--sqlite-page-size= respected';
 
 	# update master
 	$mime->header_set('Message-ID', '<m@2>');

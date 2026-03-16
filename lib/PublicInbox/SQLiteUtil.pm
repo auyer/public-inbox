@@ -51,6 +51,20 @@ sub dbh_open ($;@) {
 	});
 }
 
+# page_size changes are not immediate, they require VACUUM
+# and WAL must be disabled for it.
+sub set_page_size_now ($$;$) {
+	my ($dbh, $n, $wal) = @_;
+	$dbh->do("PRAGMA page_size = $n");
+	return if $n == $dbh->selectrow_array('PRAGMA page_size');
+
+	# changing SQLite page_size requires VACUUM w/o WAL
+	$wal ||= $dbh->selectrow_array('PRAGMA journal_mode') eq 'wal';
+	$dbh->do('PRAGMA journal_mode = TRUNCATE') if $wal;
+	$dbh->do('VACUUM');
+	$dbh->do('PRAGMA journal_mode = WAL') if $wal; # restore
+}
+
 # try to save some space on SQLite 3.27+ using `VACUUM INTO',
 # preserves WAL
 sub copy_db ($$;$) {
@@ -62,11 +76,24 @@ sub copy_db ($$;$) {
 	}
 	if (eval('"v$DBD::SQLite::sqlite_version"') ge v3.27) {
 		$dbh->do('VACUUM INTO '.$dbh->quote($f));
-		if ($dbh->selectrow_array('PRAGMA journal_mode') eq 'wal') {
-			dbh_open($f)->do('PRAGMA journal_mode = WAL');
+		my $new = dbh_open($f);
+		my $n;
+		if ($n = $opt->{'sqlite-page-size'}) {
+			set_page_size_now $new, $n, $opt->{wal};
+		} elsif (($n = $dbh->selectrow_array('PRAGMA page_size')) !=
+				$new->selectrow_array('PRAGMA page_size')) {
+			set_page_size_now $new, $n, $opt->{wal};
+		} elsif ($opt->{wal} || 'wal' eq
+				$dbh->selectrow_array('PRAGMA journal_mode')) {
+			$new->do('PRAGMA journal_mode = WAL');
 		}
 	} else {
 		$dbh->sqlite_backup_to_file($f);
+		if (my $n = $opt->{'sqlite-page-size'}) {
+			set_page_size_now dbh_open($f), $n, $opt->{wal};
+		} elsif ($opt->{wal}) {
+			dbh_open($f)->do('PRAGMA journal_mode = WAL');
+		}
 	}
 }
 

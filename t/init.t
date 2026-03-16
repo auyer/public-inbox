@@ -23,6 +23,15 @@ my $check_wal = sub {
 	is $jm, 'wal', "--wal works with $bn (msgmap.sqlite3)";
 };
 
+my $check_pgsz = sub {
+	my ($bn) = ($_[0] =~ m!/([^/]+)/*\z!);
+	my $ibx = PublicInbox::Inbox->new({inboxdir => $_[0]});
+	is $ibx->over->dbh->selectrow_array('PRAGMA page_size'),
+		64 * 1024, "$bn over page_size";
+	$ibx->mm->{dbh}->selectrow_array('PRAGMA page_size'),
+		64 * 1024, "$bn msgmap page_size";
+};
+
 {
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cfgfile = "$ENV{PI_DIR}/config";
@@ -127,6 +136,21 @@ my $check_wal = sub {
 	$cmd = [ '-init', 'd-f-conflict', "$tmpdir/d/f/conflict",
 		   qw(http://example.com/conflict onflict@example.com) ];
 	ok(!run_script($cmd, $env, $rdr), 'fails on D/F conflict');
+}
+SKIP: {
+	require_mods qw(DBD::SQLite), 1;
+	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
+	my $cmd = [ qw(-init -V1 --sqlite-page-size=64k v1pgsz),
+			"$tmpdir/v1pgsz",
+			qw(http://example.com/v1pgsz v2pgsize@example.com) ];
+	ok run_script($cmd), 'public-inbox-init -V1 --sqlite-page-size';
+	$check_pgsz->("$tmpdir/v1pgsz");
+	TODO: {
+		local $TODO = "v1 Xapian DB not created via SQLite-only switch";
+		my @f = glob("$tmpdir/v1pgsz/public-inbox/xapian*/flintlock");
+		is scalar(@f), 0,
+			'no v1 Xapian by default with only --sqlite-page-size=';
+	}
 }
 
 SKIP: {

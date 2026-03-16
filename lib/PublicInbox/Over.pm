@@ -40,6 +40,10 @@ sub dbh_new {
 	warn "W: $f: .st_dev, .st_ino unstable\n" if $st ne $self->{st};
 
 	if ($rw) {
+		$opt->{fsync} or $dbh->do('PRAGMA synchronous = OFF');
+		my $pg_sz = $opt->{'sqlite-page-size'};
+		$dbh->do('PRAGMA page_size = '.$pg_sz) if $pg_sz;
+
 		# TRUNCATE reduces I/O compared to the default (DELETE).
 		#
 		# Do not use WAL by default since we expect the case
@@ -62,7 +66,6 @@ sub dbh_new {
 			$jm eq 'wal' or
 				$dbh->do('PRAGMA journal_mode = TRUNCATE');
 		}
-		$opt->{fsync} or $dbh->do('PRAGMA synchronous = OFF')
 	}
 	$dbh;
 }
