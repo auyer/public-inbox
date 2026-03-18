@@ -6,7 +6,7 @@ package PublicInbox::IO;
 use v5.12;
 use parent qw(IO::Handle Exporter);
 use PublicInbox::DS qw(awaitpid);
-our @EXPORT_OK = qw(poll_in read_all try_cat write_file);
+our @EXPORT_OK = qw(poll_in read_all try_cat write_file my_readline my_bufread);
 use Carp qw(croak);
 use IO::Poll qw(POLLIN);
 use Errno qw(EINTR EAGAIN);
@@ -102,7 +102,7 @@ sub try_cat ($) {
 # TODO: move existing HTTP/IMAP/NNTP/POP3 uses of rbuf here
 # this does not return partial data; only a scalar ref on success,
 # 0 on EOF, and undef on error.
-sub my_bufread {
+sub my_bufread ($$) {
 	my ($io, $len) = @_;
 	my $rbuf = ${*$io}{pi_io_rbuf} //= \(my $new = '');
 	my $left = $len - length($$rbuf);
@@ -125,7 +125,7 @@ sub my_bufread {
 }
 
 # always uses "\n"
-sub my_readline {
+sub my_readline ($) {
 	my ($io) = @_;
 	my $rbuf = ${*$io}{pi_io_rbuf} //= \(my $new = '');
 	while (1) {

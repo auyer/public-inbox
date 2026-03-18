@@ -14,7 +14,7 @@ use autodie qw(close pipe read send socketpair);
 use Errno qw(EAGAIN EINTR);
 use Carp qw(croak carp);
 use PublicInbox::DS qw(awaitpid);
-use PublicInbox::IO qw(read_all);
+use PublicInbox::IO qw(my_bufread my_readline);
 use PublicInbox::Spawn;
 use PublicInbox::OnDestroy;
 use PublicInbox::WQWorker;
@@ -63,11 +63,14 @@ our $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 
 sub _get_rec ($) {
 	my ($r) = @_;
-	my $len = <$r> // return;
-	chop($len) eq "\n" or croak "no LF byte in $len";
-	my $buf = read_all $r, $len;
-	length($buf) == $len or croak "short read: ",length($buf)," != $len";
-	ipc_thaw($buf);
+	my ($len, $bref);
+	$len = my_readline($r) // croak "readline: $!";
+	return if $len eq ''; # EOF
+	chop($len) eq "\n" or croak "readline: no LF byte in <$len>";
+	$bref = my_bufread($r, $len) or
+		croak defined($bref) ? 'read EOF' : "bufread($len): $!";
+	length($$bref) == $len or croak "bufread($len) short: ", length($$bref);
+	ipc_thaw($$bref); # may croak
 }
 
 sub ipc_fail ($@) {
@@ -81,13 +84,10 @@ sub ipc_fail ($@) {
 
 sub ipc_get_res ($) {
 	my ($self) = @_;
-	my $r_res = $self->{-ipc_res} // croak 'BUG: no {-ipc_res}';
-	my ($len, $bref);
-	chop($len = $r_res->my_readline) eq "\n" or
-		ipc_fail $self, "no LF byte in $len";
-	$bref = $r_res->my_bufread($len) or
-		ipc_fail $self, defined($bref) ? 'read EOF' : "read: $!";
-	ipc_thaw($$bref); # may croak
+	my $r = $self->{-ipc_res} // croak 'BUG: no {-ipc_res}';
+	my $res = eval { _get_rec $r };
+	ipc_fail $self, $@ if $@;
+	$res;
 }
 
 sub ipc_read_step ($$) {
@@ -142,7 +142,6 @@ sub ipc_return ($$$) {
 sub ipc_worker_loop ($$$) {
 	my ($self, $r_req, $w_res) = @_;
 	my ($rec, $wantarray, $sub, @args);
-	local $/ = "\n";
 	while ($rec = _get_rec($r_req)) {
 		($wantarray, $sub, @args) = @$rec;
 		# no waiting if client doesn't care,
