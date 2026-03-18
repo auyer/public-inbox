@@ -330,7 +330,7 @@ sub recv_and_run {
 	my @io = $recv_cmd->($s2, my $buf, $len // $MY_MAX_ARG_LEN);
 	return if scalar(@io) && !defined($io[0]);
 	my $n = length($buf) or return 0;
-	@$self{0..$#io} = @io;
+	local @$self{0..$#io} = @io;
 	$_->autoflush(1) for @io;
 	while ($full_stream && $n < $len) {
 		my $r = sysread($s2, $buf, $len - $n, $n);
@@ -352,7 +352,6 @@ sub recv_and_run {
 	my $sub = shift @$args;
 	eval { $self->$sub(@$args) };
 	warn "$$ $0 wq_worker: $sub: $@" if $@;
-	delete @$self{0..$#io};
 	$n;
 }
 
