@@ -22,6 +22,8 @@ sub CSS () {
 		background:#000 !important;
 		color:#ccc !important }
 	pre { white-space: pre-wrap !important }
+	input,
+	textarea { background:#033 !important }
 
 	/*
 	 * Underlined links add visual noise which make them hard-to-read.
