@@ -367,7 +367,7 @@ sub compact ($$$) { # cb_spawn callback
 	my ($ibxish, $args, $opt) = @_;
 	my ($src, $newdir) = @$args;
 	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
-	my $pfx = $opt->{-progress_pfx} ||= progress_pfx($src);
+	my $pfx = progress_pfx($src);
 	my $pr = $opt->{-progress};
 	my %rdr = map { defined($opt->{$_}) ? ($_, $opt->{$_}) : () } (0..2);
 	my $cmd = compact_cmd $opt;
@@ -451,7 +451,7 @@ sub cidx_reshard { # not docid based
 	my (undef, $flag) = xapian_write_prep($opt);
 	my $src = $cidx->xdb;
 	delete($cidx->{xdb}) == $src or die "BUG: xdb != $src";
-	my $pfx = $opt->{-progress_pfx} = progress_pfx($cidx->xdir.'/0');
+	my $pfx = progress_pfx($cidx->xdir.'/0');
 	my $pr = $opt->{-progress};
 	my $pr_data = { pr => $pr, pfx => $pfx, nr => 0 } if $pr;
 	local @SIG{keys %SIG} = values %SIG;
@@ -503,7 +503,6 @@ sub cidx_reshard { # not docid based
 		my $wip = $arg->[1] // die 'BUG: no $wip';
 		push @q, [ "$tmp", $wip ];
 	}
-	delete $opt->{-progress_pfx};
 	process_queue $cidx, \@q, 'compact', $opt;
 }
 
@@ -543,7 +542,7 @@ sub cpdb ($$$) { # cb_spawn callback
 	my $new = $wip->dirname;
 	my $dst = xap_wdb $tmp->dirname, $flag, $opt;
 	my $pr = $opt->{-progress};
-	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);
+	my $pfx = progress_pfx($new);
 	my $pr_data = { pr => $pr, pfx => $pfx, nr => 0 } if $pr;
 
 	do {
