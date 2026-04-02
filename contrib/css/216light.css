@@ -6,6 +6,8 @@
  */
 * { font-size: 100%; font-family: monospace; background:#fff; color:#003 }
 pre { white-space: pre-wrap }
+input,
+textarea { background:#cfc }
 
 /*
  * Underlined links add visual noise which make them hard-to-read.
