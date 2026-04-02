@@ -113,7 +113,7 @@ sub du_1_level (@) {
 sub join_splits ($) {
 	my ($self) = @_;
 	require PublicInbox::Xapcmd;
-	my $cmd = PublicInbox::Xapcmd::compact_cmd($self->{-opt});
+	my ($cmd, undef) = PublicInbox::Xapcmd::compact_cmd($self->{-opt});
 	my $xpfx = $self->{xpfx};
 	opendir(my $dh, $xpfx);
 	my $shard = $self->{shard} // '';

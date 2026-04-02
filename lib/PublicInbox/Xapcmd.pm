@@ -359,7 +359,8 @@ sub compact_cmd ($) {
 		$xsw =~ tr/-//d; # we prefer '-' to delimit words in switches
 		push @$cmd, "--$xsw", $opt->{$sw};
 	}
-	$cmd;
+	my %rdr = map { defined($opt->{$_}) ? ($_, $opt->{$_}) : () } (0..2);
+	($cmd, \%rdr);
 }
 
 # xapian-compact wrapper
@@ -369,13 +370,12 @@ sub compact ($$$) { # cb_spawn callback
 	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
 	my $pfx = progress_pfx($src);
 	my $pr = $opt->{-progress};
-	my %rdr = map { defined($opt->{$_}) ? ($_, $opt->{$_}) : () } (0..2);
-	my $cmd = compact_cmd $opt;
+	my ($cmd, $rdr) = compact_cmd $opt;
 	$pr->("$pfx `@$cmd'\n") if $pr;
 	push @$cmd, $src, $dst;
 	local @SIG{keys %SIG} = values %SIG;
 	setup_signals(\&kill_compact, \my $rd);
-	$rd = popen_rd($cmd, undef, \%rdr);
+	$rd = popen_rd($cmd, undef, $rdr);
 	while (<$rd>) {
 		if ($pr) {
 			s/\r/\r$pfx /g;
