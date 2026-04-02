@@ -26,39 +26,6 @@ our @COMPACT_OPT = qw(jobs|j=i quiet|q block-size|blocksize|b=s
 		no-full|n fuller|F);
 my %SKIP = map { $_ => 1 } qw(. ..);
 
-my $reap_compact = sub { # awaitpid cb
-	my ($pid, $ok, $wip, $old, $rename_on_destroy) = @_;
-	$? and die "E: xapian-compact $wip:\n", try_cat "$wip/err";
-	push @$ok, $wip, $old;
-};
-
-# TODO: use this for old code, too
-my $rename_shards = sub { # on_destroy cb
-	my ($owner, $ok, $expect_nr) = @_;
-	($expect_nr * 2) == @$ok or return; # some xapian-compact failed
-	my (@old_shard, @unlink, @rq);
-	while (@$ok) {
-		my ($wip, $old) = splice @$ok, 0, 2;
-		my $new = $wip->dirname;
-		if (-e $old) {
-			my $mode = (stat(_))[2];
-			chmod $mode & 07777, $new;
-			push @old_shard, "$new/old";
-			push @rq, $old, $old_shard[-1];
-		} else {
-			warn "W: shard at $old disappeared during compact\n";
-		}
-		push @rq, $new, $old;
-		push @unlink, "$old/err", "$old/out";
-	}
-	# minimize lock time: (TODO: dedicated lock for shard count changes)
-	my $lk = $owner ? $owner->lock_for_scope : undef;
-	rename(shift(@rq), shift(@rq)) while @rq;
-	undef $lk;
-	remove_tree(@old_shard);
-	unlink @unlink;
-};
-
 sub commit_changes ($$$$) {
 	my ($ibx, $im, $tmp, $opt) = @_;
 	my $reshard = $opt->{reshard};
@@ -656,43 +623,6 @@ sub cpdb ($$$) { # cb_spawn callback
 	# this is probably the best place to do xapian-compact
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	compact $ibxish, [ $tmp, $new ], $opt;
-}
-
-sub join_split_tmps ($$) {
-	my ($owner, $opt) = @_;
-	my $xpfx = $owner->{xpfx} // croak "BUG: $owner has no {xfpx}";
-	my (@shards, $tmps, @pids);
-	opendir(my $dh, $xpfx);
-	while (defined(my $dir = readdir $dh)) {
-		if ($dir =~ m!\A[0-9]+\z!) {
-			push @shards, $dir;
-		} elsif ($dir =~ m!\A([0-9]+)-[0-9]+\.tmp\z!) {
-			push @{$tmps->[$1]}, $dir;
-		}
-	}
-	closedir $dh;
-	return @pids if !$tmps || !@shards;
-	@shards = sort { $a <=> $b } @shards;
-	($shards[-1] + 1) == scalar(@shards) or
-		croak "E: gaps in shards, have: @shards";
-
-	my $cmd = compact_cmd $opt;
-	my $ok = [];
-	my $rod = on_destroy $rename_shards, $owner, $ok, scalar(@shards);
-	for my $i (@shards) {
-		$tmps->[$i] // next; # no split tmps for a given shard
-		my $wip = File::Temp->newdir("$i.join-tmp-XXXX", DIR => $xpfx);
-		my $dn = $wip->dirname;
-		$opt->{cow} or PublicInbox::Syscall::nodatacow_dir($dn);
-		my $rdr = { -C => $xpfx };
-		open $rdr->{1}, '>>', "$dn/out";
-		open $rdr->{2}, '>>', "$dn/err";
-		my @srcs = ($i, @{$tmps->[$i]});
-		my $pid = spawn([ @$cmd, @srcs, $dn ], undef, $rdr);
-		awaitpid($pid, $reap_compact, $ok, $wip, "$xpfx/$i", $rod);
-		push @pids, $pid;
-	}
-	@pids;
 }
 
 1;
