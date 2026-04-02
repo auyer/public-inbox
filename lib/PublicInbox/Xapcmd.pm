@@ -60,7 +60,7 @@ sub commit_changes ($$$$) {
 		my $new = $newdir->dirname if defined($newdir);
 		my $over = "$old/over.sqlite3";
 		if (-f $over) { # only for v1, v2 over is untouched
-			defined $new or die "BUG: $over exists when culling v2";
+			$new // die "BUG: $over exists when culling v2";
 			$over = PublicInbox::Over->new($over);
 			my $tmp_over = "$new/over.sqlite3";
 			PublicInbox::SQLiteUtil::copy_db($over->dbh,
@@ -92,10 +92,8 @@ sub commit_changes ($$$$) {
 		if ($im->can('count_shards')) { # v2w, eidx, cidx
 			my $pr = $opt->{-progress};
 			my $n = $im->count_shards;
-			if (defined $reshard && $n != $reshard) {
-				die
+			$n == ($reshard // $n) or die
 "BUG: counted $n shards after resharding to $reshard";
-			}
 			my $prev = $im->{shards} // $ibx->{nshard};
 			if ($pr && $prev != $n) {
 				$pr->("shard count changed: $prev => $n\n");
@@ -186,7 +184,7 @@ sub process_queue ($$$$) {
 			last if $pid < 0;
 			my $args = delete $pids{$pid};
 			if ($args) {
-				die join(' ', @$args)." failed: $?\n" if $?;
+				die "E: @$args failed: $?\n" if $?;
 			} else {
 				warn "unknown PID($pid) reaped: $?\n";
 			}
@@ -212,17 +210,14 @@ sub prepare_run {
 		-d $old or die "$old does not exist\n";
 	}
 	my $reshard = $opt->{reshard};
-	if (defined $reshard && $reshard <= 0) {
-		die "--reshard must be a positive number\n";
-	}
+	die "--reshard must be a positive number\n" if ($reshard // 1) <= 0;
 
 	# we want temporary directories to be as deep as possible,
 	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
 	if (defined($old) && $ibx->can('version') && $ibx->version == 1) {
-		if (defined $reshard) {
-			warn
-"--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";
-		}
+		warn <<EOM if defined $reshard;
+--reshard=$reshard ignored for v1 $ibx->{inboxdir}
+EOM
 		my ($dir) = ($old =~ m!(.*?/)[^/]+/*\z!);
 		same_fs_or_die($dir, $old);
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
@@ -256,10 +251,9 @@ sub prepare_run {
 		if (!defined($reshard) || $reshard == scalar(@old_shards)) {
 			# 1:1 copy
 			$max_shard = scalar(@old_shards) - 1;
-		} else {
-			# M:N copy
+		} else { # M:N copy
 			$max_shard = $reshard - 1;
-			$src = [ map { "$old/$_" } @old_shards ];
+			@$src = map { "$old/$_" } @old_shards;
 		}
 		foreach my $dn (0..$max_shard) {
 			my $wip = File::Temp->newdir("$dn-XXXX", DIR => $old);
@@ -333,10 +327,7 @@ sub cpdb_retryable ($$) {
 		$src->reopen;
 		return 1;
 	}
-	if ($@) {
-		warn "$pfx E: ", ref($@), "\n";
-		die;
-	}
+	die "$pfx E: ", ref($@), "\n" if $@;
 	0;
 }
 
@@ -378,19 +369,13 @@ sub compact ($$$) { # cb_spawn callback
 	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
 	my $pfx = $opt->{-progress_pfx} ||= progress_pfx($src);
 	my $pr = $opt->{-progress};
-	my $rdr = {};
-
-	foreach my $fd (0..2) {
-		defined(my $dfd = $opt->{$fd}) or next;
-		$rdr->{$fd} = $dfd;
-	}
-
+	my %rdr = map { defined($opt->{$_}) ? ($_, $opt->{$_}) : () } (0..2);
 	my $cmd = compact_cmd $opt;
-	$pr->("$pfx `".join(' ', @$cmd)."'\n") if $pr;
+	$pr->("$pfx `@$cmd'\n") if $pr;
 	push @$cmd, $src, $dst;
 	local @SIG{keys %SIG} = values %SIG;
 	setup_signals(\&kill_compact, \my $rd);
-	$rd = popen_rd($cmd, undef, $rdr);
+	$rd = popen_rd($cmd, undef, \%rdr);
 	while (<$rd>) {
 		if ($pr) {
 			s/\r/\r$pfx /g;
@@ -463,7 +448,7 @@ sub compact_tmp_shard ($$) {
 
 sub cidx_reshard { # not docid based
 	my ($cidx, $queue, $opt) = @_;
-	my ($X, $flag) = xapian_write_prep($opt);
+	my (undef, $flag) = xapian_write_prep($opt);
 	my $src = $cidx->xdb;
 	delete($cidx->{xdb}) == $src or die "BUG: xdb != $src";
 	my $pfx = $opt->{-progress_pfx} = progress_pfx($cidx->xdir.'/0');
@@ -527,26 +512,20 @@ sub cidx_reshard { # not docid based
 sub cpdb ($$$) { # cb_spawn callback
 	my ($ibxish, $args, $opt) = @_;
 	my ($old, $wip) = @$args;
-	my ($src, $cur_shard);
-	my $reshard;
+	my ($src, $cur_shard, $reshard);
 	my ($X, $flag) = xapian_write_prep($opt);
 	my $lk = PublicInbox::Lock::may_sh $ibxish->open_lock;
 	if (ref($old) eq 'ARRAY') {
 		my $new = $wip->dirname;
 		($cur_shard) = ($new =~ m!(?:xap|ei)[0-9]+/([0-9]+)\b!);
-		defined $cur_shard or
-			die "BUG: could not extract shard # from $new";
-		$reshard = $opt->{reshard};
-		defined $reshard or die 'BUG: got array src w/o --reshard';
+		$cur_shard // die "BUG: could not extract shard # from $new";
+		$reshard = $opt->{reshard} //
+			die 'BUG: got array src w/o --reshard';
 
 		# resharding, M:N copy means have full read access
-		foreach (@$old) {
-			if ($src) {
-				my $sub = $X->{Database}->new($_);
-				$src->add_database($sub);
-			} else {
-				$src = $X->{Database}->new($_);
-			}
+		$src = $X->{Database}->new($old->[0]);
+		for (@$old[1..$#$old]) {
+			$src->add_database($X->{Database}->new($_));
 		}
 	} else { # 1:1 copy
 		$src = $X->{Database}->new($old);
