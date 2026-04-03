@@ -65,7 +65,7 @@ Most users will likely also want the following:
                                    rpm: perl-DBD-SQLite
                                    (for v2, IMAP, NNTP, or gzipped mboxes)
 
-- Xapian(.pm) (or Search::Xapian)  deb: libsearch-xapian-perl
+- Xapian(.pm) (or Search::Xapian)  deb: libxapian-perl OR libsearch-xapian-perl
                                    pkg: p5-Xapian (FreeBSD, NetBSD)
                                         xapian-bindings-perl (OpenBSD)
                                    rpm: perl-Search-Xapian
