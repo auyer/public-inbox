@@ -120,6 +120,7 @@ contrib/RejectBots.pm
 contrib/completion/lei-completion.bash
 contrib/css/216dark.css
 contrib/css/216light.css
+contrib/css/22dark.css
 contrib/css/README
 contrib/selinux/el7/publicinbox.fc
 contrib/selinux/el7/publicinbox.te

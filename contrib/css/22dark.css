@@ -1,0 +1,52 @@
+/*
+ * CC0-1.0 <https://creativecommons.org/publicdomain/zero/1.0/legalcode>
+ * Dark color scheme using the 22 "safest" web colors:
+ * https://en.wikipedia.org/wiki/Web_colors#Safest_web_colors
+ * Intended for use with PublicInbox::WWW, not standalone.
+ */
+* { background:#003; color:#fff }
+input,
+textarea { background:#00f }
+
+/*
+ * Underlined links add visual noise which make them hard-to-read.
+ * Use colors to make them stand out, instead.
+ */
+a:link { color:#0f6; text-decoration:none }
+a:visited { color:#3ff }
+
+/* quoted text in emails gets a different color */
+*.q { color:#0ff }
+
+/*
+ * these may be used with cgit <https://git.zx2c4.com/cgit/>, too.
+ * (cgit uses <div>, public-inbox uses <span>)
+ */
+*.add { color:#0f0 } /* diff post-image lines */
+*.del { color:#f00 } /* diff pre-image lines */
+*.head { color:#fff } /* diff header (metainformation) */
+*.hunk { color:#ff3 } /* diff hunk-header */
+
+/*
+ * highlight 3.x colors (tested 3.18) for displaying blobs.
+ * This doesn't use most of the colors available, as I find too
+ * many colors overwhelming, so the default is commented out.
+ */
+.hl.num { color:#ff6 } /* number */
+.hl.esc { color:#f0f } /* escape character */
+.hl.str { color:#ff6 } /* string */
+.hl.ppc { color:#f0f } /* preprocessor */
+.hl.pps { color:#ff6 } /* preprocessor string */
+.hl.slc { color:#0ff } /* single-line comment */
+.hl.com { color:#0ff } /* multi-line comment */
+/* .hl.opt { color:#fff } */ /* operator */
+/* .hl.ipl { color:#fff } */ /* interpolation */
+
+/* keyword groups kw[a-z] */
+.hl.kwa { color:#ff0 }
+.hl.kwb { color:#0f0 }
+.hl.kwc { color:#ff0 }
+/* .hl.kwd { color:#fff } */
+
+/* line-number (unused by public-inbox) */
+/* .hl.lin { color:#fff } */
