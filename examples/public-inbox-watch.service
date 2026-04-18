@@ -5,8 +5,8 @@ Description = public-inbox Maildir watch
 After = spamassassin.service
 
 [Service]
-Environment = PI_CONFIG=/home/pi/.public-inbox/config \
-PATH=/usr/local/bin:/usr/bin:/bin
+Environment = PI_CONFIG=/home/pi/.public-inbox/config
+Environment = PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart = /usr/local/bin/public-inbox-watch
 
 ExecReload = /bin/kill -HUP $MAINPID
