@@ -13,6 +13,14 @@ use PublicInbox::WwwStream;
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::MID qw(mid_escape);
 
+sub _sortorder_cmp {
+	my ($a, $b) = @_;
+	return -1 if defined($a) && !defined($b);
+	return  1 if !defined($a) && defined($b);
+	return  0 if !defined($a) && !defined($b);
+	return $a <=> $b;
+}
+
 sub ibx_entry {
 	my ($ctx, $ibx, $ce) = @_;
 	my $desc = ascii_html($ce->{description} //= $ibx->description);
@@ -32,8 +40,9 @@ EOM
 		$url = ascii_html(prurl($ctx->{env}, $url));
 		$tmp .= qq(  <a\nhref="$url">$url</a>\n);
 	}
+	my $so = $ibx->{sortorder};
 	push(@{$ctx->{-list}}, (scalar(@_) == 3 ? # $misc in use, already sorted
-				$tmp : [ $ce->{-modified}, $tmp ] ));
+				[$so, $tmp] : [ $so, $ce->{-modified}, $tmp ] ));
 }
 
 sub list_match_i { # ConfigIter callback
@@ -222,9 +231,14 @@ sub psgi_triple {
 		$code = 200;
 		if ($mset) { # already sorted, so search bar:
 			print $zfh mset_nav_top($ctx, $mset);
-		} else { # sort config dump by ->modified
 			@$list = map { $_->[1] }
-				sort { $b->[0] <=> $a->[0] } @$list;
+				sort { _sortorder_cmp($a->[0], $b->[0]) } @$list;
+		} else { # sort by sortorder (asc), then modified (desc)
+			@$list = map { $_->[2] }
+				sort {
+					my $so = _sortorder_cmp($a->[0], $b->[0]);
+					$so != 0 ? $so : $b->[1] <=> $a->[1]
+				} @$list;
 		}
 		print $zfh '<pre>', join("\n", @$list); # big
 		print $zfh mset_footer($ctx, $mset) if $mset;
