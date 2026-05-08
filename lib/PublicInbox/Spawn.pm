@@ -218,9 +218,10 @@ SV *send_cmd4_(PerlIO *s, SV *sio, SV *data, int flags, long tries)
 	STRLEN dlen = 0;
 	struct iovec iov;
 	ssize_t sent;
-	AV *io = (AV *)SvRV(sio);
-	I32 i, nfds = io ? (av_len(io) + 1) : 0;
+	I32 i;
 	int *fdp;
+	AV *io = SvROK(sio) ? (AV *)SvRV(sio) : NULL;
+	I32 nfds = io ? (I32)(av_len(io) + 1) : 0;
 
 	if (SvOK(data)) {
 		iov.iov_base = SvPV(data, dlen);
