@@ -34,7 +34,7 @@ use autodie qw(close open pipe seek sysseek truncate);
 
 BEGIN {
 	@RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
-	my $all_libc = <<'ALL_LIBC'; # all *nix systems we support
+	my $all_libc = qq[#line ${\__LINE__} "${\__FILE__}"\n]. <<'ALL_LIBC';
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -306,6 +306,7 @@ ALL_LIBC
 		).'/public-inbox/inline-c';
 	undef $all_libc unless -d $inline_dir;
 	if (defined $all_libc) {
+		$all_libc .= qq[#line ${\__LINE__} "${\__FILE__}"\n];
 		for (@RLIMITS, 'RLIM_INFINITY') {
 			$all_libc .= <<EOM;
 	Inline_Stack_Push(sv_2mortal(newSVpvs("$_")));
